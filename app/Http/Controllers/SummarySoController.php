@@ -1,0 +1,132 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Branch;
+use App\Models\Delivery;
+use App\Models\SalesOrder;
+use App\Models\Stock;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+/**
+ * Radar SO: monitoring real-time pemenuhan & barang yang belum diambil.
+ */
+class SummarySoController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $query = SalesOrder::with(['customer', 'branch', 'fulfillmentBranch', 'items.item', 'items.uom', 'packingLists', 'deliveries'])
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w
+                ->where('so_number', 'like', '%'.$request->string('q').'%')
+                ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', '%'.$request->string('q').'%'))));
+
+        if (! $request->boolean('all')) {
+            $query->whereIn('status', ['pending', 'processing', 'partial', 'completed']);
+        }
+
+        $orders = $this->scopeBranch($query)->orderByDesc('order_date')->paginate(10)->withQueryString();
+
+        $rows = $orders->map(fn (SalesOrder $so) => [
+            'so' => $so,
+            'lines' => $so->items->map(function ($line) use ($so) {
+                $requested = (float) $line->requested_qty;
+                $fulfilled = (float) $line->fulfilled_qty;
+                $packing = (float) $line->packingItems()->sum('qty');
+                $delivering = Delivery::whereHas('salesOrder', fn ($q) => $q->where('id', $so->id))
+                    ->whereIn('deliveries.status', ['pending_scan', 'scanned_out', 'in_delivery'])
+                    ->join('delivery_items', 'deliveries.id', '=', 'delivery_items.delivery_id')
+                    ->where('delivery_items.item_id', $line->item_id)
+                    ->sum('delivery_items.qty');
+
+                return [
+                    'line' => $line,
+                    'requested' => $requested,
+                    'fulfilled' => $fulfilled,
+                    'remaining' => max(0, $requested - $fulfilled),
+                    'packed' => $packing,
+                    'delivering' => (float) $delivering,
+                    'locations' => $this->availableLocations($so, $line),
+                ];
+            }),
+            'state' => $this->progressState($so),
+        ]);
+
+        $stats = [
+            'open' => $this->scopeBranch(SalesOrder::query())->whereIn('status', ['pending', 'processing', 'partial'])->count(),
+            'partial' => $this->scopeBranch(SalesOrder::query())->where('status', 'partial')->count(),
+            'completed' => $this->scopeBranch(SalesOrder::query())->where('status', 'completed')->count(),
+            'not_taken' => $this->scopeBranch(SalesOrder::query())
+                ->whereIn('status', ['pending', 'processing', 'partial'])
+                ->with('items')
+                ->get()
+                ->flatMap->items
+                ->sum(fn ($i) => max(0, (float) $i->requested_qty - (float) $i->fulfilled_qty)),
+        ];
+
+        return view('summary-so.index', compact('rows', 'orders', 'stats'));
+    }
+
+    public function show(Request $request, SalesOrder $order): View
+    {
+        $order->load(['customer', 'branch', 'fulfillmentBranch', 'items.item', 'items.uom', 'packingLists.boxes', 'deliveries']);
+
+        $lines = $order->items->map(fn ($line) => [
+            'line' => $line,
+            'remaining' => max(0, (float) $line->requested_qty - (float) $line->fulfilled_qty),
+            'locations' => $this->availableLocations($order, $line),
+        ]);
+
+        return view('summary-so.show', [
+            'order' => $order,
+            'lines' => $lines,
+            'state' => $this->progressState($order),
+        ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    private function availableLocations(SalesOrder $so, $line): string
+    {
+        $sourceBranch = $so->fulfillment_branch_id ?: $so->branch_id;
+
+        $rows = Stock::where('item_id', $line->item_id)
+            ->where('quantity_pcs', '>', 0)
+            ->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $this->activeBranchId()))
+            ->with(['location', 'branch'])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return 'Stok tersedia: -';
+        }
+
+        $byBranch = $rows->groupBy('branch_id')->map(function ($group) {
+            $bin = $group->sortBy('received_at')->first();
+
+            return $group->first()->branch?->code.' '.number_format($group->sum('quantity_pcs'), 0).' PCS @ '.($bin->location?->code ?? '-');
+        })->values();
+
+        $mark = $sourceBranch ? '(SO cabang '.Branch::find($sourceBranch)?->code.')' : '';
+
+        return 'Stok tersedia: '.implode(' | ', $byBranch->all()).' '.$mark;
+    }
+
+    private function progressState(SalesOrder $so): array
+    {
+        $picked = (float) $so->items()->sum('picked_qty');
+        $packed = (float) $so->items()->sum('packed_qty');
+        $fulfilled = (float) $so->items()->sum('fulfilled_qty');
+
+        $delivery = $so->deliveries()->latest('id')->first();
+
+        return [
+            'picking' => $fulfilled > 0 && $picked < $fulfilled,
+            'picked' => $picked > 0,
+            'packing' => $packed > 0 && $packed < $fulfilled,
+            'packed' => $fulfilled > 0 && $packed >= $fulfilled,
+            'delivery' => $delivery?->status,
+            'delivered' => in_array($delivery?->status, ['received'], true),
+        ];
+    }
+}

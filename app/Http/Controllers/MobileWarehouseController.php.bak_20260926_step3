@@ -1,0 +1,205 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Delivery;
+use App\Models\GoodsReceipt;
+use App\Models\GoodsReceiptItem;
+use App\Models\StockOpname;
+use App\Models\StockOpnameItem;
+use App\Models\Stock;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+/**
+ * Interface mobile-first untuk staf gudang lapangan (/mobile).
+ * Mendukung kamera (HTML5-QRCode) dan scanner hardware USB/Bluetooth
+ * (keyboard-wedge: fokus input + Enter otomatis submit).
+ */
+class MobileWarehouseController extends Controller
+{
+    public const MODES = ['scanin', 'scanout', 'opname'];
+
+    public function index(Request $request): View
+    {
+        $mode = in_array($request->get('mode'), self::MODES, true) ? $request->get('mode') : 'scanin';
+        $branchId = $this->activeBranchId();
+
+        $receipts = GoodsReceipt::with(['supplier', 'items.item'])
+            ->whereIn('status', ['received', 'putaway'])
+            ->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $branchId))
+            ->withCount(['items as total_lines'])
+            ->withCount(['items as pending_lines' => fn ($q) => $q->whereColumn('total_pcs', '>', 'qty_placed')])
+            ->latest('id')
+            ->limit(30)
+            ->get();
+
+        $deliveries = Delivery::with(['vehicle', 'packingList', 'salesOrder.customer'])
+            ->whereIn('status', ['pending_scan', 'scanned_out'])
+            ->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $branchId))
+            ->withCount(['items as total_boxes' => fn ($q) => $q->selectRaw('COUNT(DISTINCT barcode)')])
+            ->withCount(['items as scanned_boxes' => fn ($q) => $q->where('status', 'scanned_out')->selectRaw('COUNT(DISTINCT barcode)')])
+            ->latest('id')
+            ->limit(30)
+            ->get();
+
+        $sessions = StockOpname::with(['location', 'warehouse'])
+            ->whereIn('status', ['open', 'in_progress'])
+            ->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $branchId))
+            ->latest('id')
+            ->limit(30)
+            ->get();
+
+        $deliveryId = $request->integer('delivery_id') ?: $deliveries->first()?->id;
+        $opnameId = $request->integer('opname_id') ?: $sessions->first()?->id;
+        $receiptId = $request->integer('receipt_id') ?: $receipts->first()?->id;
+
+        $selectedDelivery = $deliveryId ? Delivery::with('items')->find($deliveryId) : null;
+        $selectedOpname = $opnameId ? StockOpname::find($opnameId) : null;
+
+        $bins = collect();
+        if ($selectedOpname) {
+            $bins = $this->locationsOf($selectedOpname->warehouse_id);
+        } elseif ($receiptId) {
+            $gr = GoodsReceipt::find($receiptId);
+            $bins = $this->locationsOf($gr?->warehouse_id);
+        }
+
+        return view('mobile.index', [
+            'mode' => $mode,
+            'receipts' => $receipts,
+            'deliveries' => $deliveries,
+            'sessions' => $sessions,
+            'selectedDelivery' => $selectedDelivery,
+            'selectedOpname' => $selectedOpname,
+            'selectedReceiptId' => $receiptId,
+            'bins' => $bins,
+            'scanned' => $selectedDelivery ? $selectedDelivery->items()->where('status', 'scanned_out')->count() : 0,
+            'total' => $selectedDelivery ? $selectedDelivery->items()->count() : 0,
+        ]);
+    }
+
+    /**
+     * Preview barcode (dipakai kamera / scanner sebelum form disubmit).
+     */
+    public function lookup(Request $request)
+    {
+        $data = $request->validate([
+            'type' => ['required', 'in:scanin,scanout,opname'],
+            'barcode' => ['required', 'string', 'max:80'],
+            'reference_id' => ['nullable', 'integer'],
+        ]);
+
+        $code = $data['barcode'];
+
+        return match ($data['type']) {
+            'scanin' => $this->lookupScanIn($code),
+            'scanout' => $this->lookupScanOut($code, (int) $data['reference_id']),
+            'opname' => $this->lookupOpname($code, (int) $data['reference_id']),
+        };
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    private function lookupScanIn(string $code)
+    {
+        $line = GoodsReceiptItem::with(['item', 'goodsReceipt'])->where('original_barcode', $code)->first();
+
+        if (! $line) {
+            return response()->json(['ok' => false, 'message' => 'Barcode penerimaan tidak ditemukan.'], 404);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Barang ditemukan: '.$line->item?->name,
+            'payload' => [
+                'goods_receipt_item_id' => $line->id,
+                'doc_number' => $line->goodsReceipt->doc_number,
+                'status' => $line->goodsReceipt->status,
+                'sku' => $line->item?->sku,
+                'remaining' => max(0, (float) $line->total_pcs - (float) $line->qty_placed),
+                'bins' => $this->locationsOf($line->goodsReceipt->warehouse_id)
+                    ->map(fn ($l) => ['id' => $l->id, 'code' => $l->code]),
+            ],
+        ]);
+    }
+
+    private function lookupScanOut(string $code, int $deliveryId)
+    {
+        if (! $deliveryId) {
+            return response()->json(['ok' => false, 'message' => 'Pilih surat jalan terlebih dahulu.'], 422);
+        }
+
+        $delivery = Delivery::find($deliveryId);
+
+        if (! $delivery) {
+            return response()->json(['ok' => false, 'message' => 'Surat jalan tidak ditemukan.'], 404);
+        }
+
+        $items = $delivery->items()->where('barcode', $code)->get();
+
+        if ($items->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => "{$code} bukan muatan surat jalan {$delivery->delivery_no}."], 404);
+        }
+
+        $already = $items->every(fn ($i) => $i->status === 'scanned_out');
+
+        return response()->json([
+            'ok' => true,
+            'message' => $already ? "{$code} sudah pernah discan out." : "{$code} siap dimuat ke armada.",
+            'payload' => [
+                'delivery_id' => $delivery->id,
+                'delivery_no' => $delivery->delivery_no,
+                'barcode' => $code,
+                'qty' => $items->sum('qty'),
+                'already' => $already,
+            ],
+        ]);
+    }
+
+    private function lookupOpname(string $code, int $opnameId)
+    {
+        if (! $opnameId) {
+            return response()->json(['ok' => false, 'message' => 'Pilih sesi opname terlebih dahulu.'], 422);
+        }
+
+        $session = StockOpname::find($opnameId);
+
+        if (! $session) {
+            return response()->json(['ok' => false, 'message' => 'Sesi opname tidak ditemukan.'], 404);
+        }
+
+        $stock = Stock::with(['item', 'batch'])
+            ->where('location_id', $session->location_id)
+            ->where('quantity_pcs', '>', 0)
+            ->where(function ($q) use ($code) {
+                $q->where('original_barcode', $code)
+                    ->orWhereHas('item', fn ($i) => $i->where('sku', $code)->orWhere('barcode', $code))
+                    ->orWhereHas('batch', fn ($b) => $b->where('batch_number', $code));
+            })
+            ->first();
+
+        if (! $stock) {
+            return response()->json(['ok' => false, 'message' => "Barcode tidak ditemukan di {$session->location?->code}."], 404);
+        }
+
+        $existing = StockOpnameItem::where('stock_opname_id', $session->id)
+            ->where('item_id', $stock->item_id)
+            ->where(fn ($q) => $q->where('batch_id', $stock->batch_id)->orWhereNull('batch_id'))
+            ->first();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Barang ditemukan: '.$stock->item?->name,
+            'payload' => [
+                'stock_opname_id' => $session->id,
+                'item_id' => $stock->item_id,
+                'batch_id' => $stock->batch_id,
+                'sku' => $stock->item?->sku,
+                'batch' => $stock->batch?->batch_number,
+                'system_qty' => (float) $stock->quantity_pcs,
+                'physical_qty' => $existing ? (float) $existing->physical_qty : $stock->quantity_pcs,
+            ],
+        ]);
+    }
+}
