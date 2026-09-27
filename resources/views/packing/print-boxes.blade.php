@@ -12,7 +12,7 @@
         <div class="rounded-lg border border-slate-400 p-4 text-center" style="page-break-inside:avoid;">
             <p class="text-xs font-bold uppercase tracking-widest text-slate-500">HASIL FASTINDO</p>
             <p class="text-base font-extrabold">BOX {{ $box->box_number }} / {{ $packing->total_box }}</p>
-            <svg class="mx-auto" data-barcode="{{ $box->box_barcode }}"></svg>
+            <div class="mx-auto" data-qr="{{ $box->box_barcode }}" data-qr-size="130"></div>
             <p class="font-mono text-xs font-bold tracking-widest">{{ $box->box_barcode }}</p>
             <p class="mt-1 text-[11px] font-semibold text-slate-600">
                 {{ $packing->salesOrder?->so_number }} · {{ Str::limit($packing->customer?->name ?? $packing->salesOrder?->customer?->name ?? '', 30) }}
@@ -22,13 +22,3 @@
     @endforeach
 </div>
 @endsection
-
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-<script>
-    document.querySelectorAll('[data-barcode]').forEach(el => {
-        try { JsBarcode(el, el.dataset.barcode, { format: 'CODE128', width: 2, height: 50, fontSize: 13, margin: 5 }); }
-        catch (e) { el.textContent = el.dataset.barcode; }
-    });
-</script>
-@endpush

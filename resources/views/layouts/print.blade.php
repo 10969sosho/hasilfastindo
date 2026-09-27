@@ -30,5 +30,39 @@
     @yield('content')
 
     @stack('scripts')
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        (function () {
+            function fallback(el, size, text) {
+                const img = document.createElement('img');
+                img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(text);
+                img.width = size;
+                img.height = size;
+                img.alt = text;
+                el.textContent = '';
+                el.appendChild(img);
+            }
+
+            document.querySelectorAll('[data-qr]').forEach(el => {
+                const text = el.dataset.qr;
+                const size = parseInt(el.dataset.qrSize || '120', 10);
+                if (!text) return;
+
+                el.style.width = size + 'px';
+                el.style.height = size + 'px';
+                el.style.margin = '0 auto';
+
+                if (window.QRCode) {
+                    try {
+                        new QRCode(el, { text: text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+                        return;
+                    } catch (e) { /* lanjut ke fallback */ }
+                }
+
+                fallback(el, size, text);
+            });
+        })();
+    </script>
 </body>
 </html>

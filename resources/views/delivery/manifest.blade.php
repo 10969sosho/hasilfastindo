@@ -37,7 +37,10 @@
             <tr>
                 @if ($i === 0)
                     <td rowspan="{{ max(1, $group->count()) }}">{{ ++$no }}</td>
-                    <td rowspan="{{ max(1, $group->count()) }}" class="font-mono">{{ $barcode }}</td>
+                    <td rowspan="{{ max(1, $group->count()) }}" class="text-center">
+                        <div class="mx-auto" data-qr="{{ $barcode }}" data-qr-size="80"></div>
+                        <p class="font-mono text-[10px]">{{ $barcode }}</p>
+                    </td>
                 @endif
                 <td>{{ $item->item?->name }} <span style="color:#64748b">({{ $item->item?->sku }})</span></td>
                 <td style="text-align:right"><b>{{ number_format($item->qty) }}</b></td>

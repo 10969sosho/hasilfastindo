@@ -66,7 +66,7 @@
 
                 <form method="POST" action="{{ route('delivery.scan', $selectedDelivery) }}" class="flex gap-2">
                     @csrf
-                    <input class="input font-mono flex-1" name="barcode" placeholder="Scan barcode dus" autocomplete="off" autofocus>
+                    <input class="input font-mono flex-1" name="barcode" id="mBarcode" placeholder="Scan barcode dus" autocomplete="off" autofocus>
                     <button class="btn btn-primary">Muat</button>
                 </form>
             @else
@@ -112,6 +112,14 @@
                 <p class="text-sm text-slate-400">Tidak ada sesi opname berjalan.</p>
             @endif
         @endif
+
+        <div class="mt-4 border-t border-slate-200 pt-3">
+            <button type="button" id="camBtn" class="btn btn-ghost w-full">
+                <x-icon name="camera" :size="16" /> Scan QR Code / Barcode lewat Kamera
+            </button>
+            <div id="qrReader" class="mt-3 hidden overflow-hidden rounded-lg"></div>
+            <p class="hint mt-2">Kamera butuh HTTPS atau localhost. Mendukung QR Code 2D dan barcode 1D.</p>
+        </div>
     </div>
 
     <div class="card card-pad">
@@ -136,6 +144,7 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script>
     const lookupUrl = @json(route('mobile.lookup'));
     const mode = @json($mode);
@@ -187,6 +196,73 @@
     if (input) {
         input.addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); doLookup(input.value.trim()); }
+        });
+    }
+
+    /* ------------------------------------------------ Kamera: scan QR 2D */
+    const camBtn = document.getElementById('camBtn');
+    const camReader = document.getElementById('qrReader');
+    let html5Scanner = null;
+
+    async function stopCamera() {
+        if (!html5Scanner) return;
+        try { await html5Scanner.stop(); } catch (e) { /* sudah berhenti */ }
+        html5Scanner.clear();
+        html5Scanner = null;
+        camReader.classList.add('hidden');
+        camBtn.textContent = 'Scan QR Code / Barcode lewat Kamera';
+    }
+
+    function applyScanned(text) {
+        const target = document.getElementById('mBarcode');
+        if (!target) return;
+
+        target.value = text;
+
+        if (mode === 'scanout') {
+            if (target.form) { target.form.requestSubmit ? target.form.requestSubmit() : target.form.submit(); }
+        } else {
+            doLookup(text);
+        }
+    }
+
+    if (camBtn && camReader) {
+        camBtn.addEventListener('click', async () => {
+            if (html5Scanner) { await stopCamera(); return; }
+
+            if (!window.Html5Qrcode) {
+                camReader.classList.remove('hidden');
+                camReader.innerHTML = '<p class="rounded-lg bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">Library scanner belum termuat. Periksa koneksi internet lalu muat ulang halaman.</p>';
+                return;
+            }
+
+            camReader.classList.remove('hidden');
+            camReader.innerHTML = '';
+            html5Scanner = new Html5Qrcode('qrReader', {
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.QR_CODE,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.CODE_39,
+                    Html5QrcodeSupportedFormats.EAN_13,
+                ],
+                rememberLastUsedCamera: false,
+            });
+
+            try {
+                await html5Scanner.start(
+                    { facingMode: 'environment' },
+                    { fps: 10, qrbox: { width: 240, height: 240 } },
+                    async (decodedText) => {
+                        await stopCamera();
+                        applyScanned(decodedText);
+                    },
+                    () => { /* frame tanpa kode: abaikan */ }
+                );
+                camBtn.textContent = 'Matikan Kamera';
+            } catch (e) {
+                camReader.innerHTML = '<p class="rounded-lg bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">Kamera tidak dapat diakses. Izinkan akses kamera dan gunakan HTTPS/localhost.</p>';
+                html5Scanner = null;
+            }
         });
     }
 </script>
