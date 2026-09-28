@@ -57,7 +57,7 @@ return new class extends Migration
             $table->id();
             $table->string('sku', 60)->unique();
             $table->string('name');
-            $table->foreignId('category_id')->constrained()->nullOnDelete();
+            $table->foreignId('category_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('base_uom_id')->constrained('uoms');
             $table->decimal('min_stock', 18, 3)->default(0);
             $table->decimal('cost_price', 18, 2)->default(0);
