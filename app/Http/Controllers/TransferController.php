@@ -14,6 +14,7 @@ use App\Services\StockService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TransferController extends Controller
@@ -42,6 +43,7 @@ class TransferController extends Controller
 
         return view('transfer.form', [
             'branches' => $this->branchesForUser(),
+            'toBranches' => $this->allBranches(),
             'fromBranchId' => $fromBranchId,
             'fromWarehouses' => Warehouse::where('branch_id', $fromBranchId)->orderBy('code')->get(),
             'items' => Item::where('is_active', true)->orderBy('name')->get(['id', 'sku', 'name', 'base_uom_id']),
@@ -67,6 +69,30 @@ class TransferController extends Controller
         );
     }
 
+    /**
+     * Stok per item per BIN di sebuah gudang, dipakai form untuk hanya
+     * menawarkan BIN yang benar-benar berisi stok item terkait.
+     */
+    public function stockBins(Request $request)
+    {
+        return response()->json(
+            Stock::query()
+                ->join('locations', 'locations.id', '=', 'stocks.location_id')
+                ->where('stocks.branch_id', $request->integer('branch_id'))
+                ->where('locations.warehouse_id', $request->integer('warehouse_id'))
+                ->where('stocks.quantity_pcs', '>', 0)
+                ->groupBy('stocks.item_id', 'stocks.location_id', 'locations.code')
+                ->orderBy('locations.code')
+                ->select(
+                    'stocks.item_id',
+                    'stocks.location_id',
+                    'locations.code as code',
+                    DB::raw('SUM(stocks.quantity_pcs) as qty')
+                )
+                ->get()
+        );
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -84,6 +110,10 @@ class TransferController extends Controller
         ]);
 
         $this->guardBranch((int) $data['from_branch_id']);
+
+        if ($shortages = $this->arrayShortages((int) $data['from_branch_id'], $data['items'])) {
+            return back()->withInput()->withErrors($shortages);
+        }
 
         $transfer = DB::transaction(function () use ($data) {
             $transfer = StockTransfer::create([
@@ -148,6 +178,17 @@ class TransferController extends Controller
             return back()->with('toast', 'Transfer tidak dalam status draft.');
         }
 
+        $transfer->loadMissing('items');
+
+        if ($shortages = $this->arrayShortages((int) $transfer->from_branch_id, $transfer->items->map(fn (StockTransferItem $line) => [
+            'item_id' => $line->item_id,
+            'from_location_id' => $line->from_location_id,
+            'qty' => $line->qty,
+            'uom_id' => $line->uom_id,
+        ])->all())) {
+            return back()->withErrors($shortages);
+        }
+
         DB::transaction(function () use ($transfer) {
             foreach ($transfer->items as $line) {
                 $pcs = $this->toPcs((int) $line->item_id, (float) $line->qty, (int) $line->uom_id);
@@ -161,7 +202,12 @@ class TransferController extends Controller
                 ]);
 
                 if ($taken + 0.0001 < $pcs) {
-                    abort(422, 'Stok asal tidak mencukupi untuk '.($line->item?->sku ?? 'item transfer'));
+                    // Stok berubah di tengah proses: lempar agar transaksi dibatalkan
+                    // (stok tidak boleh terpotong sebagian) lalu kembali dengan pesan.
+                    throw ValidationException::withMessages([
+                        'ship' => 'Stok berubah saat proses kirim, mohon cek ulang stok '
+                            .($line->item?->sku ?? 'item transfer').'.',
+                    ]);
                 }
             }
 
@@ -258,5 +304,54 @@ class TransferController extends Controller
     private function allowedFor(int $branchId): bool
     {
         return $this->canSeeAllBranches() || $branchId === (int) $this->activeBranchId();
+    }
+
+    /**
+     * Baris yang stoknya kurang di BIN asal, dipetakan sebagai error validasi
+     * sehingga pesannya tampil di kotak merah layout, bukan halaman error 422.
+     *
+     * @param  array<int, array<string, mixed>>  $lines  butuh item_id, from_location_id, qty, uom_id
+     * @return array<string, string>
+     */
+    private function arrayShortages(int $fromBranchId, array $lines): array
+    {
+        $skus = Item::whereIn('id', array_column($lines, 'item_id'))->pluck('sku', 'id');
+        $codes = Location::whereIn('id', array_column($lines, 'from_location_id'))->pluck('code', 'id');
+
+        $shortages = [];
+
+        foreach ($lines as $index => $row) {
+            $pcs = $this->toPcs((int) $row['item_id'], (float) $row['qty'], (int) $row['uom_id']);
+            $available = $this->availablePcs($fromBranchId, (int) $row['item_id'], (int) $row['from_location_id']);
+
+            if ($available + 0.0001 < $pcs) {
+                $shortages["items.$index.from_location_id"] = sprintf(
+                    '%s di %s butuh %s PCS, stok hanya %s PCS.',
+                    $skus[$row['item_id']] ?? 'Item',
+                    $codes[$row['from_location_id']] ?? 'BIN',
+                    $pcs,
+                    $available
+                );
+            }
+        }
+
+        return $shortages;
+    }
+
+    /**
+     * Ketersediaan stok satu item di satu BIN (PCS).
+     *
+     * Kondisinya sengaja disamakan dengan kandidat yang dipilih
+     * StockService::remove(), supaya validasi di form tidak pernah
+     * lolos padahal proses kirim pasti gagal.
+     */
+    private function availablePcs(int $branchId, int $itemId, int $locationId): float
+    {
+        return (float) Stock::query()
+            ->where('branch_id', $branchId)
+            ->where('item_id', $itemId)
+            ->where('location_id', $locationId)
+            ->where('quantity_pcs', '>', 0)
+            ->sum('quantity_pcs');
     }
 }

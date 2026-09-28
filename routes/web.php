@@ -109,6 +109,7 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::post('/transfers', [TransferController::class, 'store'])->name('transfer.store');
     Route::get('/transfers/warehouses', [TransferController::class, 'warehouses'])->name('transfer.warehouses');
     Route::get('/transfers/bins', [TransferController::class, 'bins'])->name('transfer.bins');
+    Route::get('/transfers/stock-bins', [TransferController::class, 'stockBins'])->name('transfer.stockBins');
     Route::get('/transfers/{transfer}', [TransferController::class, 'show'])->name('transfer.show');
     Route::post('/transfers/{transfer}/ship', [TransferController::class, 'ship'])->name('transfer.ship');
     Route::post('/transfers/{transfer}/receive', [TransferController::class, 'receive'])->name('transfer.receive');

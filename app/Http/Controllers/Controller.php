@@ -8,6 +8,7 @@ use App\Models\ItemUomConversion;
 use App\Models\Location;
 use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 abstract class Controller
@@ -75,10 +76,20 @@ abstract class Controller
         abort(403, 'Anda tidak memiliki akses ke cabang tersebut.');
     }
 
+    /**
+     * Semua cabang tanpa penyaringan per user.
+     *
+     * @return Collection<int, Branch>
+     */
+    protected function allBranches()
+    {
+        return Branch::orderBy('is_central', 'desc')->orderBy('name')->get();
+    }
+
     protected function branchesForUser()
     {
         if ($this->canSeeAllBranches()) {
-            return Branch::orderBy('is_central', 'desc')->orderBy('name')->get();
+            return $this->allBranches();
         }
 
         return Branch::whereIn('id', array_filter([$this->activeBranchId()]))->get();
