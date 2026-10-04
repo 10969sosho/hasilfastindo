@@ -15,6 +15,7 @@ class GoodsReceipt extends Model
         'warehouse_id',
         'destination_location_id',
         'source_so',
+        'po_no',
         'received_at',
         'status',
         'user_id',
@@ -53,5 +54,10 @@ class GoodsReceipt extends Model
     public function items(): HasMany
     {
         return $this->hasMany(GoodsReceiptItem::class);
+    }
+
+    public function serials(): HasMany
+    {
+        return $this->hasMany(ItemSerial::class, 'receive_no', 'doc_number');
     }
 }

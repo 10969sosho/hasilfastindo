@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\GoodsReceipt;
 use App\Models\GoodsReceiptItem;
 use App\Models\Item;
+use App\Models\ItemSerial;
 use App\Models\ItemUomConversion;
 use App\Models\Location;
 use App\Models\Stock;
@@ -52,6 +53,7 @@ class InboundController extends Controller
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'destination_location_id' => ['nullable', 'exists:locations,id'],
             'source_so' => ['nullable', 'string', 'max:60'],
+            'po_no' => ['nullable', 'string', 'max:60'],
             'received_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
@@ -59,6 +61,7 @@ class InboundController extends Controller
             'items.*.batch_no' => ['nullable', 'string', 'max:60'],
             'items.*.received_uom_id' => ['required', 'exists:uoms,id'],
             'items.*.received_qty' => ['required', 'numeric', 'min:0.001'],
+            'items.*.nav_qty' => ['nullable', 'numeric', 'min:0'],
             'items.*.target_bin_id' => ['nullable', 'exists:locations,id'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
         ]);
@@ -72,9 +75,25 @@ class InboundController extends Controller
         $sequence = (int) preg_replace('/\D+/', '', substr($docNumber, strrpos($docNumber, '-') + 1));
         $stamp = now()->format('Ymd');
 
+        // Acuan Qty NAV (unit terkecil) per SKU: diisi pada baris pertama tiap SKU.
+        $navByItem = [];
+        $lineNav = [];
+
+        foreach ($data['items'] as $i => $row) {
+            $lineNav[$i] = null;
+            $itemId = (int) $row['item_id'];
+
+            if (($row['nav_qty'] ?? '') !== '' && ! array_key_exists($itemId, $navByItem)) {
+                $navByItem[$itemId] = (float) $row['nav_qty'];
+                $lineNav[$i] = $navByItem[$itemId];
+            }
+        }
+
+        $physicalByItem = [];
+
         $gr = null;
 
-        DB::transaction(function () use (&$gr, $data, $branchId, $docNumber, $sequence, $stamp) {
+        DB::transaction(function () use (&$gr, $data, $branchId, $docNumber, $sequence, $stamp, $lineNav, $navByItem, $physicalByItem) {
             $gr = GoodsReceipt::create([
                 'doc_number' => $docNumber,
                 'supplier_id' => $data['supplier_id'],
@@ -82,6 +101,7 @@ class InboundController extends Controller
                 'warehouse_id' => $data['warehouse_id'],
                 'destination_location_id' => $data['destination_location_id'] ?? $this->defaultWarehouse($branchId)?->locations()->first()?->id,
                 'source_so' => $data['source_so'] ?? null,
+                'po_no' => $data['po_no'] ?? null,
                 'received_at' => ($data['received_at'] ?? null) ? now()->startOfDay() : null,
                 'status' => 'draft',
                 'user_id' => auth()->id(),
@@ -90,7 +110,10 @@ class InboundController extends Controller
 
             foreach ($data['items'] as $i => $row) {
                 $qty = (float) $row['received_qty'];
-                $multiplier = $this->conversionMultiplier((int) $row['item_id'], (int) $row['received_uom_id'], (int) Item::whereKey($row['item_id'])->value('base_uom_id')) ?? 1;
+                $itemId = (int) $row['item_id'];
+                $multiplier = $this->conversionMultiplier($itemId, (int) $row['received_uom_id'], (int) Item::whereKey($row['item_id'])->value('base_uom_id')) ?? 1;
+
+                $physicalByItem[$itemId] = ($physicalByItem[$itemId] ?? 0) + $qty * $multiplier;
 
                 GoodsReceiptItem::create([
                     'goods_receipt_id' => $gr->id,
@@ -100,11 +123,18 @@ class InboundController extends Controller
                     'received_qty' => $qty,
                     'conversion_multiplier' => $multiplier,
                     'total_pcs' => $qty * $multiplier,
+                    'nav_qty' => $lineNav[$i],
                     'qty_placed' => 0,
                     'target_bin_id' => $row['target_bin_id'] ?? null,
                     'original_barcode' => sprintf('HF-RCV-%s-%04d-%02d', $stamp, $sequence, $i + 1),
                     'notes' => $row['notes'] ?? null,
                 ]);
+            }
+
+            $diffNote = $this->navDiffNotes($navByItem, $physicalByItem);
+
+            if ($diffNote !== '') {
+                $gr->update(['notes' => trim(($gr->notes ?? '')."\n".$diffNote)]);
             }
         });
 
@@ -115,8 +145,26 @@ class InboundController extends Controller
     {
         $inbound->load(['supplier', 'branch', 'warehouse', 'location', 'items.item', 'items.receivedUom', 'items.targetBin']);
 
+        $serials = $inbound->serials()->with('location')->get();
+
+        // Perbandingan Qty NAV (unit terkecil) vs qty fisik input, dikelompokkan per SKU.
+        $navSummary = $inbound->items->groupBy('item_id')->map(function ($lines) {
+            $nav = $lines->pluck('nav_qty')->filter()->max();
+            $physical = (float) $lines->sum('total_pcs');
+
+            return [
+                'sku' => $lines->first()?->item?->sku,
+                'name' => $lines->first()?->item?->name,
+                'nav' => $nav === null ? null : (float) $nav,
+                'physical' => $physical,
+                'diff' => $nav === null ? null : $physical - (float) $nav,
+            ];
+        })->values()->filter(fn (array $row) => $row['nav'] !== null)->values();
+
         return view('inbound.show', [
             'gr' => $inbound,
+            'serials' => $serials,
+            'navSummary' => $navSummary,
             'bins' => $this->locationsOf($inbound->warehouse_id),
             'canReceive' => $inbound->status === 'draft',
             'canPutaway' => in_array($inbound->status, ['received', 'putaway'], true),
@@ -160,6 +208,10 @@ class InboundController extends Controller
             }
 
             $inbound->update(['status' => 'received', 'received_at' => $inbound->received_at ?? now()]);
+
+            // 1 record serial = 1 unit UOM fisik, sequence per penerimaan + SKU + UOM.
+            ItemSerial::generateForReceipt($inbound);
+
             $request->session()->flash('toast', 'Barang diterima, siap dilakukan putaway ke BIN.');
         });
 
@@ -189,12 +241,25 @@ class InboundController extends Controller
     {
         $inbound->load(['items.item', 'items.receivedUom', 'supplier', 'branch']);
 
-        return view('inbound.print-labels', ['gr' => $inbound]);
+        $serials = $inbound->serials()->get();
+        $itemNames = Item::whereIn('sku', $serials->pluck('sku')->unique())->pluck('name', 'sku');
+
+        return view('inbound.print-labels', ['gr' => $inbound, 'serials' => $serials, 'itemNames' => $itemNames]);
     }
 
     public function barcodeLookup(Request $request)
     {
         $code = trim($request->input('barcode', ''));
+
+        $serial = ItemSerial::find($code);
+
+        if ($serial) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Unit ditemukan: '.$serial->sku,
+                'payload' => $serial->toLookupPayload(),
+            ]);
+        }
 
         $line = GoodsReceiptItem::where('original_barcode', $code)
             ->with(['item', 'goodsReceipt'])
@@ -301,6 +366,42 @@ class InboundController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
+
+    /**
+     * Catatan selisih Qty NAV (unit terkecil) vs qty fisik yang diinput, per SKU.
+     *
+     * @param  array<int, float>  $navByItem
+     * @param  array<int, float>  $physicalByItem
+     */
+    private function navDiffNotes(array $navByItem, array $physicalByItem): string
+    {
+        if (! $navByItem) {
+            return '';
+        }
+
+        $skus = Item::whereIn('id', array_keys($navByItem))->pluck('sku', 'id');
+        $fmt = fn (float $value) => rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+
+        $diffs = [];
+
+        foreach ($navByItem as $itemId => $nav) {
+            $physical = $physicalByItem[$itemId] ?? 0;
+
+            if (abs($physical - $nav) <= 0.001) {
+                continue;
+            }
+
+            $diffs[] = sprintf(
+                '%s NAV %s PCS vs fisik %s PCS (%s)',
+                $skus[$itemId] ?? $itemId,
+                $fmt($nav),
+                $fmt((float) $physical),
+                ($physical > $nav ? '+' : '-').$fmt(abs($physical - $nav))
+            );
+        }
+
+        return $diffs ? 'Selisih NAV: '.implode('; ', $diffs) : '';
+    }
 
     private function formData(Request $request): array
     {

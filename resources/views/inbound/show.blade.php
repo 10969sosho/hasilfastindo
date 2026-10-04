@@ -30,6 +30,20 @@
             <div class="card-pad border-b border-slate-100">
                 <h2 class="text-sm font-extrabold text-slate-900">Item Penerimaan</h2>
                 <p class="hint">Barcode unik dibuat otomatis per baris (HF-RCV-...)</p>
+                @if ($navSummary->isNotEmpty())
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        @foreach ($navSummary as $row)
+                            @php $hasDiff = abs($row['diff']) > 0.001; @endphp
+                            <span class="rounded-full px-3 py-1 text-xs font-bold {{ $hasDiff ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700' }}">
+                                {{ $hasDiff ? '⚠ ' : '✓ ' }}{{ $row['sku'] }}: NAV {{ rtrim(rtrim(number_format($row['nav'], 2, '.', ''), '0'), '.') }}
+                                · Fisik {{ rtrim(rtrim(number_format($row['physical'], 2, '.', ''), '0'), '.') }} PCS
+                                @if ($hasDiff)
+                                    · Selisih {{ $row['diff'] > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format($row['diff'], 2, '.', ''), '0'), '.') }}
+                                @endif
+                            </span>
+                        @endforeach
+                    </div>
+                @endif
             </div>
             <div class="table-scroll">
                 <table class="table">
@@ -60,6 +74,46 @@
                 </table>
             </div>
         </div>
+
+        {{-- Serial UOM (1 record = 1 unit fisik) --}}
+        @if ($serials->isNotEmpty())
+            <div class="card mt-5 overflow-hidden">
+                <div class="card-pad flex flex-wrap items-center justify-between gap-3 border-b border-slate-100">
+                    <div>
+                        <h2 class="text-sm font-extrabold text-slate-900">Serial UOM ({{ $serials->count() }} unit)</h2>
+                        <p class="hint">QR Code label memakai kode_uom_serialno. Scan untuk melihat detail / picking.</p>
+                    </div>
+                    <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                        {{ $serials->where('qty_uom_out', '>', 0)->count() }} terpicking · {{ $serials->where('qty_uom_out', 0)->count() }} belum
+                    </span>
+                </div>
+                <div class="table-scroll" style="max-height:24rem;overflow-y:auto">
+                    <table class="table">
+                        <thead>
+                            <tr><th>Serial No</th><th>UoM</th><th class="text-right">PCS</th><th>BIN</th><th>Status</th><th>SO / Pick</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach ($serials as $s)
+                            <tr>
+                                <td class="font-mono text-[11px] font-bold text-indigo-700">{{ $s->kode_uom_serialno }}</td>
+                                <td class="font-bold">{{ $s->uom }}</td>
+                                <td class="text-right">{{ rtrim(rtrim(number_format($s->qty_smallest_unit_in, 2, '.', ''), '0'), '.') }}</td>
+                                <td class="font-mono text-xs">{{ $s->bin_no ?: '-' }}</td>
+                                <td>
+                                    @if ($s->isPicked())
+                                        <span class="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">Dipick</span>
+                                    @else
+                                        <span class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">Belum</span>
+                                    @endif
+                                </td>
+                                <td class="text-[11px] text-slate-600">{{ $s->so_no ?: '-' }}{{ $s->pick_no ? ' · '.$s->pick_no : '' }}</td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
 
         {{-- Putaway --}}
         @if ($canPutaway)
@@ -119,6 +173,7 @@
             <h2 class="mb-3 text-sm font-extrabold text-slate-900">Info Dokumen</h2>
             <dl class="space-y-2 text-sm">
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">No. Dokumen</dt><dd class="font-mono font-bold text-slate-800">{{ $gr->doc_number }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">No. PO</dt><dd class="font-mono font-bold">{{ $gr->po_no ?: '-' }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Supplier</dt><dd class="text-right font-semibold">{{ $gr->supplier?->name }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">BIN Staging</dt><dd class="font-mono font-bold">{{ $gr->location?->code ?: '-' }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Diterima</dt><dd class="font-semibold">{{ $gr->received_at?->format('d/m/Y H:i') ?: '-' }}</dd></div>

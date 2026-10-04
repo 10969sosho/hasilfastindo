@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Delivery;
 use App\Models\GoodsReceipt;
 use App\Models\GoodsReceiptItem;
+use App\Models\ItemSerial;
 use App\Models\Stock;
 use App\Models\StockOpname;
 use App\Models\StockOpnameItem;
@@ -91,6 +92,16 @@ class MobileWarehouseController extends Controller
         ]);
 
         $code = $data['barcode'];
+
+        $serial = ItemSerial::find($code);
+
+        if ($serial) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Unit ditemukan: '.$serial->sku,
+                'payload' => $serial->toLookupPayload(),
+            ]);
+        }
 
         return match ($data['type']) {
             'scanin' => $this->lookupScanIn($code),

@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Item;
+use App\Models\ItemSerial;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\Stock;
@@ -233,6 +234,61 @@ class OutboundController extends Controller
             'source_branch_id' => $sourceBranchId,
             'lines' => $lines->all(),
         ]), $outbound);
+    }
+
+    /**
+     * Picking: scan kode_uom_serialno -> update data picking di item_serials.
+     */
+    public function pickScan(Request $request, SalesOrder $outbound)
+    {
+        $this->guardBranch((int) $outbound->branch_id);
+
+        $data = $request->validate([
+            'barcode' => ['required', 'string', 'max:160'],
+        ]);
+
+        $serial = ItemSerial::find($data['barcode']);
+
+        if (! $serial) {
+            return response()->json(['ok' => false, 'message' => 'Serial UOM tidak ditemukan.'], 404);
+        }
+
+        $payload = $serial->toLookupPayload();
+
+        $inSo = $outbound->items()
+            ->whereHas('item', fn ($q) => $q->where('sku', $serial->sku))
+            ->exists();
+
+        if (! $inSo) {
+            return response()->json([
+                'ok' => false,
+                'message' => "SKU {$serial->sku} tidak ada di SO {$outbound->so_number}.",
+                'payload' => $payload,
+            ], 422);
+        }
+
+        if ($serial->isPicked()) {
+            return response()->json([
+                'ok' => false,
+                'message' => "Unit sudah dipick pada SO {$serial->so_no} ({$serial->pick_no}).",
+                'payload' => $payload,
+            ], 422);
+        }
+
+        $serial->update([
+            'pick_no' => 'PK-'.$outbound->so_number,
+            'so_no' => $outbound->so_number,
+            'qty_uom_out' => 1,
+            'qty_smallest_unit_out' => $serial->qty_smallest_unit_in,
+            'input_pick_by' => auth()->id(),
+            'input_pick_date_time' => now(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => "Unit {$serial->kode_uom_serialno} berhasil dipick.",
+            'payload' => $serial->fresh()->toLookupPayload(),
+        ]);
     }
 
     private function resolveSoStatus(SalesOrder $so): string

@@ -102,6 +102,7 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::get('/outbound/{outbound}', [OutboundController::class, 'show'])->name('outbound.show');
     Route::post('/outbound/{outbound}/fulfill', [OutboundController::class, 'fulfill'])->name('outbound.fulfill');
     Route::post('/outbound/{outbound}/auto-fulfill', [OutboundController::class, 'autoFulfill'])->name('outbound.auto');
+    Route::post('/outbound/{outbound}/pick', [OutboundController::class, 'pickScan'])->name('outbound.pick');
 
     /* --------------------------------------------- Transfer Antar Cabang */
     Route::get('/transfers', [TransferController::class, 'index'])->name('transfer.index');

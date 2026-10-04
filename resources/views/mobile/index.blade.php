@@ -16,6 +16,8 @@
 
 <div class="grid gap-5 lg:grid-cols-2">
     <div class="card card-pad">
+        <div id="serialResult" class="mb-4"></div>
+
         @if ($mode === 'scanin')
             <h2 class="text-sm font-extrabold text-slate-900">Scan In — Putaway</h2>
             <p class="hint mb-3">Scan barcode HF-RCV milik penerimaan yang sudah diterima, lalu pilih BIN tujuan.</p>
@@ -163,6 +165,11 @@
             });
             const data = await res.json();
 
+            if (data.payload && data.payload.type === 'serial') {
+                renderSerial(res.ok, data);
+                return;
+            }
+
             if (mode === 'scanin') {
                 const box = document.getElementById('scaninResult');
                 if (!res.ok) { box.innerHTML = `<p class="rounded-lg bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">${data.message}</p>`; return; }
@@ -190,6 +197,43 @@
         } catch (e) {
             console.error(e);
         }
+    }
+
+    /* ---- Detail unit serial UOM (scan QR kode_uom_serialno) ---- */
+    function renderSerial(ok, data) {
+        const box = document.getElementById('serialResult');
+        if (!box) return;
+
+        if (!ok) {
+            box.innerHTML = `<p class="rounded-lg bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">${data.message}</p>`;
+            return;
+        }
+
+        const p = data.payload;
+        const fmt = n => Number(n).toLocaleString('id-ID');
+        const rows = [
+            ['SKU', p.sku],
+            ['Barang', p.item || '-'],
+            ['UoM', `${p.qty_uom_in} ${p.uom}`],
+            ['Unit Terkecil', `${fmt(p.qty_smallest_unit_in)} PCS`],
+            ['No. Receive', p.receive_no],
+            ['No. PO', p.po_no || '-'],
+            ['Supplier', p.supplier || '-'],
+            ['BIN / Rak', [p.bin_no, p.location].filter(Boolean).join(' · ') || '-'],
+            ['Status Picking', p.picked ? `Sudah · ${p.qty_uom_out} ${p.uom} out (${fmt(p.qty_smallest_unit_out)} PCS)` : 'Belum dipick'],
+            ['No. Pick', p.pick_no || '-'],
+            ['No. SO', p.so_no || '-'],
+            ['Waktu Receive', p.receive_at || '-'],
+            ['Waktu Pick', p.pick_at || '-'],
+        ];
+
+        box.innerHTML = `
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                <p class="font-mono text-xs font-extrabold tracking-tight text-indigo-700">${p.kode_uom_serialno}</p>
+                <dl class="mt-2 space-y-1 text-sm">
+                    ${rows.map(([k, v]) => `<div class="flex justify-between gap-3"><dt class="text-slate-500">${k}</dt><dd class="text-right font-semibold text-slate-800">${v}</dd></div>`).join('')}
+                </dl>
+            </div>`;
     }
 
     const input = document.getElementById('mBarcode');

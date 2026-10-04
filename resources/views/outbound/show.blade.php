@@ -102,6 +102,17 @@
                 </form>
             </div>
         </div>
+
+        {{-- Picking: scan serial UOM --}}
+        <div class="card card-pad mt-5">
+            <h2 class="mb-1 text-sm font-extrabold text-slate-900">Picking — Scan Serial UOM</h2>
+            <p class="hint mb-3">Scan QR label (<span class="font-mono">{{ 'SKU-UOM-RECEIVE-SEQ' }}</span>) untuk menandai unit keluar pada SO ini.</p>
+            <div class="flex gap-2">
+                <input class="input font-mono flex-1" id="pickBarcode" placeholder="ABC123-BOX-GRN-202610-0001-001" autocomplete="off">
+                <button type="button" class="btn btn-primary" id="pickBtn"><x-icon name="check" :size="16" /> Pick</button>
+            </div>
+            <div id="pickResult" class="mt-3"></div>
+        </div>
     </div>
 
     <div class="space-y-4">
@@ -146,3 +157,54 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    const pickUrl = @json(route('outbound.pick', $outbound));
+    const pickBox = document.getElementById('pickResult');
+    const pickInput = document.getElementById('pickBarcode');
+
+    async function pickSerial() {
+        const code = pickInput.value.trim();
+        if (!code) return;
+
+        pickBox.innerHTML = '<p class="hint">Memeriksa unit...</p>';
+
+        try {
+            const res = await fetch(pickUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                },
+                body: JSON.stringify({ barcode: code }),
+            });
+            const data = await res.json();
+            const p = data.payload;
+            const detail = p ? `
+                <div class="mt-1 text-xs text-slate-600">
+                    <span class="font-mono font-bold">${p.kode_uom_serialno}</span>
+                    · ${p.item || p.sku} · ${p.qty_uom_in} ${p.uom} (${Number(p.qty_smallest_unit_in).toLocaleString('id-ID')} PCS)
+                    · BIN ${p.bin_no || '-'} · ${p.receive_no}
+                    · ${p.picked ? 'Sudah dipick ' + (p.pick_at || '') : 'Belum dipick'}
+                </div>` : '';
+
+            pickBox.innerHTML = `
+                <p class="rounded-lg px-4 py-3 text-sm font-bold ${res.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}">
+                    ${data.message}${detail}
+                </p>`;
+
+            if (res.ok) {
+                pickInput.value = '';
+                pickInput.focus();
+            }
+        } catch (e) {
+            pickBox.innerHTML = '<p class="rounded-lg bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">Gagal terhubung ke server.</p>';
+        }
+    }
+
+    document.getElementById('pickBtn').addEventListener('click', pickSerial);
+    pickInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pickSerial(); } });
+</script>
+@endpush

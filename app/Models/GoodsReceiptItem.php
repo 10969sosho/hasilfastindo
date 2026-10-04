@@ -16,6 +16,7 @@ class GoodsReceiptItem extends Model
         'received_qty',
         'conversion_multiplier',
         'total_pcs',
+        'nav_qty',
         'qty_placed',
         'target_bin_id',
         'original_barcode',
@@ -26,6 +27,7 @@ class GoodsReceiptItem extends Model
         'received_qty' => 'float',
         'conversion_multiplier' => 'float',
         'total_pcs' => 'float',
+        'nav_qty' => 'float',
         'qty_placed' => 'float',
     ];
 
