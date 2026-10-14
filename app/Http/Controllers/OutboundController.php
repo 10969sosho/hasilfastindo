@@ -137,6 +137,22 @@ class OutboundController extends Controller
     }
 
     /**
+     * Konfirmasi admin: SO dari NAV masuk ke proses Picking / Packing.
+     */
+    public function confirm(SalesOrder $outbound): RedirectResponse
+    {
+        $this->guardBranch((int) $outbound->branch_id);
+
+        if ($outbound->status !== 'pending') {
+            return back()->with('toast', 'SO sudah melewati tahap konfirmasi.');
+        }
+
+        $outbound->update(['status' => 'confirmed']);
+
+        return back()->with('toast', "SO {$outbound->so_number} dikonfirmasi admin, siap proses picking & packing.");
+    }
+
+    /**
      * Pemenuhan FIFO (bisa cross-branch: SO milik cabang A, barang keluar dari cabang B).
      */
     public function fulfill(Request $request, SalesOrder $outbound): RedirectResponse
@@ -242,6 +258,13 @@ class OutboundController extends Controller
     public function pickScan(Request $request, SalesOrder $outbound)
     {
         $this->guardBranch((int) $outbound->branch_id);
+
+        if ($outbound->status === 'pending') {
+            return response()->json([
+                'ok' => false,
+                'message' => "SO {$outbound->so_number} belum dikonfirmasi admin untuk picking.",
+            ], 422);
+        }
 
         $data = $request->validate([
             'barcode' => ['required', 'string', 'max:160'],

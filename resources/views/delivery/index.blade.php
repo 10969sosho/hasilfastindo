@@ -42,7 +42,7 @@
                 <tr>
                     <td>
                         <a href="{{ route('delivery.show', $d) }}" class="font-mono text-xs font-bold text-indigo-700 hover:underline">{{ $d->delivery_no }}</a>
-                        <p class="text-[11px] text-slate-400">{{ $d->packingList?->no_packing }}</p>
+                        <p class="text-[11px] text-slate-400">{{ $d->packingLists->pluck('no_packing')->join(', ') ?: '-' }}</p>
                     </td>
                     <td class="font-mono text-xs text-slate-700">{{ $d->salesOrder?->so_number }}</td>
                     <td class="text-slate-700">{{ $d->vehicle?->plate_number ?? '-' }}</td>

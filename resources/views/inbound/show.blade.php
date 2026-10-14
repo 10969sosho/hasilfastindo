@@ -48,7 +48,7 @@
             <div class="table-scroll">
                 <table class="table">
                     <thead>
-                        <tr><th>Barcode</th><th>Item</th><th>Batch</th><th class="text-right">Qty</th><th>UoM</th><th class="text-right">× Konversi</th><th class="text-right">Total PCS</th><th class="text-right">Ditempatkan</th></tr>
+                        <tr><th>Barcode</th><th>Item</th><th>Batch</th><th class="text-right">Qty</th><th>UoM</th><th class="text-right">× Konversi</th><th class="text-right">Total PCS</th><th class="text-right">Berat (kg)</th><th>BIN / Rak</th><th class="text-right">Ditempatkan</th></tr>
                     </thead>
                     <tbody>
                     @forelse ($gr->items as $line)
@@ -63,12 +63,14 @@
                             <td><span class="font-bold">{{ $line->receivedUom?->code }}</span></td>
                             <td class="text-right text-slate-600">{{ rtrim(rtrim(number_format($line->conversion_multiplier, 4), '0'), '.') }}</td>
                             <td class="text-right font-bold text-slate-800">{{ number_format($line->total_pcs) }}</td>
+                            <td class="text-right">{{ $line->weight !== null ? rtrim(rtrim(number_format($line->weight, 3, '.', ''), '0'), '.') : '-' }}</td>
+                            <td class="font-mono text-xs">{{ $line->bin_no ?: '-' }}</td>
                             <td class="text-right font-bold {{ $line->qty_placed >= $line->total_pcs ? 'text-emerald-600' : 'text-amber-600' }}">
                                 {{ number_format($line->qty_placed) }}
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-6 text-center text-slate-400">Tidak ada item.</td></tr>
+                        <tr><td colspan="10" class="py-6 text-center text-slate-400">Tidak ada item.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
@@ -90,7 +92,7 @@
                 <div class="table-scroll" style="max-height:24rem;overflow-y:auto">
                     <table class="table">
                         <thead>
-                            <tr><th>Serial No</th><th>UoM</th><th class="text-right">PCS</th><th>BIN</th><th>Status</th><th>SO / Pick</th></tr>
+                            <tr><th>Serial No</th><th>UoM</th><th class="text-right">PCS</th><th class="text-right">Berat (kg)</th><th>BIN</th><th>Status</th><th>SO / Pick</th></tr>
                         </thead>
                         <tbody>
                         @foreach ($serials as $s)
@@ -98,6 +100,7 @@
                                 <td class="font-mono text-[11px] font-bold text-indigo-700">{{ $s->kode_uom_serialno }}</td>
                                 <td class="font-bold">{{ $s->uom }}</td>
                                 <td class="text-right">{{ rtrim(rtrim(number_format($s->qty_smallest_unit_in, 2, '.', ''), '0'), '.') }}</td>
+                                <td class="text-right">{{ $s->weight !== null ? rtrim(rtrim(number_format($s->weight, 3, '.', ''), '0'), '.') : '-' }}</td>
                                 <td class="font-mono text-xs">{{ $s->bin_no ?: '-' }}</td>
                                 <td>
                                     @if ($s->isPicked())

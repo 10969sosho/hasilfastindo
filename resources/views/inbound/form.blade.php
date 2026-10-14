@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Penerimaan Baru')
-@section('subtitle', 'Input supplier, nomor dokumen, item & batch — barcode HF-RCV dibuat otomatis')
+@section('subtitle', 'Input konversi UOM, berat & BIN — serial QR dibuat otomatis per unit')
 
 @section('content')
 <form method="POST" action="{{ route('inbound.store') }}" class="grid gap-5 lg:grid-cols-3">
@@ -59,10 +59,51 @@
         <div class="card card-pad">
             <div class="mb-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-sm font-extrabold text-slate-900">Item & Batch</h2>
-                    <p class="hint">Konversi satuan otomatis ke PCS. Isi <b>Qty NAV</b> (unit terkecil) di baris pertama tiap SKU untuk pembanding. Barcode <span class="font-mono font-bold">HF-RCV-YYYYMMDD-XXXX</span> dibuat otomatis per baris.</p>
+                    <h2 class="text-sm font-extrabold text-slate-900">Item, Konversi UOM, Berat &amp; BIN</h2>
+                    <p class="hint">Acuan <b>Qty NAV</b> (unit terkecil) diisi di baris pertama tiap SKU. Serial QR dibuat otomatis 1 per unit UOM.</p>
                 </div>
                 <button type="button" class="btn btn-ghost btn-sm" id="addRow"><x-icon name="plus" :size="14" /> Baris Item</button>
+            </div>
+
+            <div class="mb-4 grid gap-4 rounded-lg bg-slate-50 p-3 sm:grid-cols-2">
+                <div>
+                    <span class="label">Cara Input Konversi UOM</span>
+                    <div class="flex flex-col gap-1.5 pt-1 text-sm font-semibold text-slate-700">
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="conversion_mode" value="total" @checked(old('conversion_mode', 'total') === 'total')>
+                            Input Total Qty Terkecil
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="conversion_mode" value="per_uom" @checked(old('conversion_mode') === 'per_uom')>
+                            Input Isi Per Satuan UOM
+                        </label>
+                    </div>
+                    <p class="hint mt-1">Total Qty Terkecil: isi <b>Total PCS</b> → dibagi rata ke Qty UOM. Isi Per Satuan: isi <b>Isi PCS/UOM</b> → total = Qty × Isi (dibandingkan ke Qty NAV).</p>
+                </div>
+                <div>
+                    <span class="label">Berat &amp; BIN / Rak</span>
+                    <div class="flex flex-col gap-1.5 pt-1 text-sm font-semibold text-slate-700">
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="weight_bin_mode" value="same" @checked(old('weight_bin_mode', 'same') === 'same')>
+                            Terapkan Berat &amp; BIN sama ke semua unit
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="weight_bin_mode" value="per_unit" @checked(old('weight_bin_mode') === 'per_unit')>
+                            Bisa beda per unit dus/koli
+                        </label>
+                    </div>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="hint">Berat per unit (kg)</label>
+                            <input class="input" type="number" step="0.001" min="0" name="weight" value="{{ old('weight') }}" placeholder="12.5">
+                        </div>
+                        <div>
+                            <label class="hint">BIN / Rak</label>
+                            <input class="input" name="bin_no" value="{{ old('bin_no') }}" placeholder="A-03-02">
+                        </div>
+                    </div>
+                    <p class="hint mt-1" id="weightHint">Berat &amp; BIN diterapkan sama ke semua unit.</p>
+                </div>
             </div>
 
             <div id="navSummary" class="mb-4 flex flex-wrap gap-2"></div>
@@ -70,7 +111,7 @@
             <div class="table-scroll">
                 <table class="table">
                     <thead>
-                        <tr><th class="min-w-[14rem]">Item</th><th>Batch No</th><th>Satuan</th><th class="w-28">Qty</th><th class="w-32">Total PCS</th><th class="w-28">Qty NAV (PCS)</th><th>BIN Tujuan</th><th></th></tr>
+                        <tr><th class="min-w-[13rem]">Item</th><th>Batch No</th><th>Satuan</th><th class="w-28">Qty UOM</th><th class="w-32">Total PCS</th><th class="w-32">Isi PCS/UOM</th><th class="w-28">Qty NAV (PCS)</th><th>BIN Tujuan</th><th></th></tr>
                     </thead>
                     <tbody id="itemBody">
                         <tr class="item-row">
@@ -78,30 +119,33 @@
                                 <select class="input item-select" name="items[0][item_id]" required>
                                     <option value="">- Pilih item -</option>
                                     @foreach ($items as $i)
-                                        <option value="{{ $i->id }}" data-meta="{{ json_encode($itemMeta[$i->id] ?? null) }}">{{ $i->sku }} — {{ $i->name }}</option>
+                                        <option value="{{ $i->id }}" @selected(old('items.0.item_id') == $i->id) data-meta="{{ json_encode($itemMeta[$i->id] ?? null) }}">{{ $i->sku }} — {{ $i->name }}</option>
                                     @endforeach
                                 </select>
                             </td>
-                            <td><input class="input font-mono" name="items[0][batch_no]" placeholder="B-2026A"></td>
+                            <td><input class="input font-mono" name="items[0][batch_no]" value="{{ old('items.0.batch_no') }}" placeholder="B-2026A"></td>
                             <td>
                                 <select class="input uom-select" name="items[0][received_uom_id]" required>
-                                    @foreach ($uoms as $u)<option value="{{ $u->id }}" data-code="{{ $u->code }}">{{ $u->code }}</option>@endforeach
+                                    @foreach ($uoms as $u)<option value="{{ $u->id }}" @selected(old('items.0.received_uom_id') == $u->id) data-code="{{ $u->code }}">{{ $u->code }}</option>@endforeach
                                 </select>
                             </td>
-                            <td><input class="input qty-input" type="number" step="0.001" min="0" name="items[0][received_qty]" value="1" required></td>
-                            <td class="pcs-cell font-bold text-indigo-700">0</td>
-                            <td><input class="input nav-input text-right" type="number" step="0.001" min="0" name="items[0][nav_qty]" placeholder="Opsional" disabled></td>
+                            <td><input class="input qty-input" type="number" step="0.001" min="0" name="items[0][received_qty]" value="{{ old('items.0.received_qty', 1) }}" required></td>
+                            <td><input class="input total-input text-right" type="number" step="0.001" min="0" name="items[0][total_pcs]" value="{{ old('items.0.total_pcs') }}" placeholder="90000"></td>
+                            <td><input class="input per-input text-right" type="number" step="0.001" min="0" name="items[0][pcs_per_uom]" value="{{ old('items.0.pcs_per_uom') }}" placeholder="10000"></td>
+                            <td><input class="input nav-input text-right" type="number" step="0.001" min="0" name="items[0][nav_qty]" value="{{ old('items.0.nav_qty') }}" placeholder="Opsional" disabled></td>
                             <td>
                                 <select class="input" name="items[0][target_bin_id]">
                                     <option value="">- Ikut BIN staging -</option>
-                                    @foreach ($bins as $b)<option value="{{ $b->id }}">{{ $b->code }}</option>@endforeach
+                                    @foreach ($bins as $b)<option value="{{ $b->id }}" @selected(old('items.0.target_bin_id') == $b->id)>{{ $b->code }}</option>@endforeach
                                 </select>
                             </td>
-                            <td class="w-10"><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();syncNav();">✕</button></td>
+                            <td class="w-10"><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();syncNav();renderUnits();">✕</button></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+
+            <div id="unitBox" class="mt-4 hidden"></div>
         </div>
     </div>
 
@@ -117,9 +161,9 @@
             <p class="text-xs font-bold text-slate-600">Alur</p>
             <ol class="hint mt-2 list-inside list-decimal space-y-1">
                 <li>Simpan dokumen (draft)</li>
-                <li>Terima barang → stok masuk BIN staging</li>
+                <li>Terima barang → serial QR per unit + stok masuk BIN staging</li>
                 <li>Putaway ke BIN tujuan</li>
-                <li>Cetak label barcode</li>
+                <li>Cetak label (berat &amp; BIN per unit)</li>
             </ol>
         </div>
     </div>
@@ -129,20 +173,37 @@
 @push('scripts')
 <script>
     let rowIndex = 1;
+    const oldUnits = @json(collect(old('items.0.units', [])));
+
+    const mode = () => document.querySelector('input[name=conversion_mode]:checked')?.value || 'total';
+    const perUnit = () => document.querySelector('input[name=weight_bin_mode]:checked')?.value === 'per_unit';
 
     function recalc(row) {
         const sel = row.querySelector('.item-select');
         const meta = JSON.parse(sel.selectedOptions[0]?.dataset.meta || 'null');
         const qty = parseFloat(row.querySelector('.qty-input').value || 0);
         const uomId = parseInt(row.querySelector('.uom-select').value);
-        let pcs = qty;
-        if (meta) {
-            if (uomId === meta.base_uom_id) pcs = qty;
-            else pcs = qty * (parseFloat(meta.conversions?.[uomId]) || 1);
+        const totalInput = row.querySelector('.total-input');
+        const perInput = row.querySelector('.per-input');
+
+        if (mode() === 'per_uom') {
+            const per = parseFloat(perInput.value || 0);
+            perInput.readOnly = false;
+            totalInput.readOnly = true;
+            totalInput.value = per > 0 ? qty * per : '';
+            if (per <= 0 && meta && uomId !== meta.base_uom_id) {
+                const conv = parseFloat(meta.conversions?.[uomId]) || 1;
+                totalInput.value = qty * conv;
+            }
+        } else {
+            totalInput.readOnly = false;
+            perInput.readOnly = true;
+            if (!totalInput.value && meta) {
+                const conv = (uomId === meta.base_uom_id) ? 1 : (parseFloat(meta.conversions?.[uomId]) || 1);
+                totalInput.value = qty * conv;
+            }
+            perInput.value = qty > 0 && totalInput.value ? parseFloat(totalInput.value) / qty : '';
         }
-        const cell = row.querySelector('.pcs-cell');
-        cell.textContent = pcs.toLocaleString('id-ID');
-        cell.dataset.value = pcs;
     }
 
     /* Qty NAV diisi hanya di baris pertama tiap SKU (baris duplikat dinonaktifkan). */
@@ -177,7 +238,7 @@
                 nav: 0, hasNav: false, physical: 0,
             };
 
-            entry.physical += parseFloat(row.querySelector('.pcs-cell')?.dataset.value || 0);
+            entry.physical += parseFloat(row.querySelector('.total-input')?.value || 0);
             const navVal = row.querySelector('.nav-input')?.value;
             if (navVal !== '' && navVal !== null && navVal !== undefined) {
                 entry.nav += parseFloat(navVal);
@@ -200,15 +261,73 @@
         }).join('');
     }
 
-    function refreshRow(row) { recalc(row); syncNav(); }
+    /* Input berat & BIN per unit dus/koli (mode "beda per unit"). */
+    function renderUnits() {
+        const box = document.getElementById('unitBox');
+        const hint = document.getElementById('weightHint');
+        if (!box) return;
+
+        if (hint) hint.textContent = perUnit()
+            ? 'Berat & BIN di atas menjadi nilai default bila kolom unit dibiarkan kosong.'
+            : 'Berat & BIN diterapkan sama ke semua unit.';
+
+        if (!perUnit()) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+
+        let html = '<p class="label">Berat &amp; BIN per Unit (opsional)</p>'
+            + '<p class="hint mb-2">Kosongkan kolom unit untuk memakai berat &amp; BIN di atas.</p>';
+
+        document.querySelectorAll('#itemBody .item-row').forEach(row => {
+            const name = row.querySelector('[name^="items["]')?.name || '';
+            const idx = (name.match(/items\[(\d+)\]/) || [])[1];
+            const qty = Math.floor(parseFloat(row.querySelector('.qty-input').value || 0));
+            const label = (row.querySelector('.item-select').selectedOptions[0]?.textContent || '').trim();
+
+            if (idx === undefined || isNaN(qty) || qty < 1) return;
+
+            if (qty > 30) {
+                html += `<p class="hint rounded-lg bg-amber-50 px-3 py-2">${label || 'Baris'}: ${qty} unit — input per unit dinonaktifkan (&gt;30), pakai berat &amp; BIN sama.</p>`;
+                return;
+            }
+
+            html += `<p class="label mt-3">${label || 'Baris'} · ${qty} unit</p><div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">`;
+
+            for (let u = 0; u < qty; u++) {
+                const o = (idx === '0' && oldUnits[u]) ? oldUnits[u] : {};
+                html += `<div class="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5">
+                    <span class="text-xs font-bold text-slate-500">U${u + 1}</span>
+                    <input class="input py-1 text-xs" type="number" step="0.001" min="0" placeholder="kg" name="items[${idx}][units][${u}][weight]" value="${o.weight ?? ''}">
+                    <input class="input py-1 text-xs" placeholder="BIN / Rak" name="items[${idx}][units][${u}][bin_no]" value="${o.bin_no ?? ''}">
+                </div>`;
+            }
+
+            html += '</div>';
+        });
+
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    function refreshRow(row) { recalc(row); syncNav(); renderUnits(); }
 
     document.addEventListener('input', e => {
         const row = e.target.closest('.item-row');
-        if (row && (e.target.classList.contains('qty-input') || e.target.classList.contains('uom-select') || e.target.classList.contains('item-select') || e.target.classList.contains('nav-input'))) refreshRow(row);
+        if (row && (e.target.classList.contains('qty-input') || e.target.classList.contains('uom-select') || e.target.classList.contains('item-select') || e.target.classList.contains('nav-input') || e.target.classList.contains('total-input') || e.target.classList.contains('per-input'))) refreshRow(row);
     });
     document.addEventListener('change', e => {
         const row = e.target.closest('.item-row');
         if (row) refreshRow(row);
+    });
+
+    document.querySelectorAll('input[name=conversion_mode], input[name=weight_bin_mode]').forEach(el => {
+        el.addEventListener('change', () => {
+            document.querySelectorAll('#itemBody .item-row').forEach(recalc);
+            syncNav();
+            renderUnits();
+        });
     });
 
     document.getElementById('addRow').addEventListener('click', () => {
@@ -217,9 +336,11 @@
         document.getElementById('itemBody').insertAdjacentHTML('beforeend', html);
         rowIndex++;
         syncNav();
+        renderUnits();
     });
 
     document.querySelectorAll('.item-row').forEach(recalc);
     syncNav();
+    renderUnits();
 </script>
 @endpush

@@ -8,7 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SalesOrder extends Model
 {
-    public const STATUSES = ['draft', 'pending', 'processing', 'partial', 'completed', 'cancelled'];
+    public const STATUSES = ['draft', 'pending', 'confirmed', 'processing', 'partial', 'completed', 'cancelled'];
+
+    /** SO yang masih berjalan (menunggu konfirmasi admin maupun sedang diproses). */
+    public const OPEN_STATUSES = ['pending', 'confirmed', 'processing', 'partial'];
 
     protected $fillable = [
         'so_number',

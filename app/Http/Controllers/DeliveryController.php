@@ -26,7 +26,7 @@ class DeliveryController extends Controller
 
     public function index(Request $request): View
     {
-        $query = Delivery::with(['salesOrder', 'packingList', 'branch', 'vehicle'])
+        $query = Delivery::with(['salesOrder', 'packingList', 'packingLists', 'branch', 'vehicle'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w
                 ->where('delivery_no', 'like', '%'.$request->string('q').'%')
@@ -44,39 +44,48 @@ class DeliveryController extends Controller
 
     public function create(Request $request): View
     {
-        $plId = $request->integer('packing_list_id');
-        $packingList = $plId ? PackingList::with('salesOrder.customer')->findOrFail($plId) : null;
+        $selectedIds = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('packing_list_ids', [])))));
 
-        $packingLists = PackingList::with(['salesOrder', 'customer'])
+        if ($request->filled('packing_list_id')) {
+            $selectedIds[] = $request->integer('packing_list_id');
+            $selectedIds = array_values(array_unique($selectedIds));
+        }
+
+        $packingLists = PackingList::with(['salesOrder', 'customer', 'boxes.items.item'])
             ->whereIn('status', ['packed', 'loaded'])
             ->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $this->activeBranchId()))
             ->latest('id')
             ->limit(50)
             ->get();
 
-        $branchId = (int) ($packingList?->branch_id ?: $this->activeBranchId());
+        $selected = $packingLists->whereIn('id', $selectedIds)->values();
+        $primary = $selected->first();
+        $branchId = (int) ($primary?->branch_id ?: $this->activeBranchId());
 
         return view('delivery.form', [
-            'packingList' => $packingList,
             'packingLists' => $packingLists,
+            'selectedIds' => $selected->pluck('id')->all(),
+            'boxes' => $selected->flatMap(fn (PackingList $pl) => $pl->boxes)->values(),
             'vehicles' => Vehicle::orderBy('plate_number')->get(),
             'drivers' => Driver::where('role', 'driver')->where('is_active', true)->orderBy('name')->get(),
             'helpers' => Driver::where('role', 'helper')->where('is_active', true)->orderBy('name')->get(),
-            'boxes' => $packingList ? $packingList->boxes()->with('items.item')->get() : collect(),
+            'defaultAddress' => $primary?->customer?->address ?? $primary?->salesOrder?->customer?->address ?? '',
             'branchId' => $branchId,
         ]);
     }
 
     /**
-     * Buat surat jalan + daftar muatan (belum scan out).
+     * Buat surat jalan (bisa gabung beberapa packing list / SO) + daftar muatan.
      */
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'packing_list_id' => ['required', 'exists:packing_lists,id'],
+            'packing_list_ids' => ['required', 'array', 'min:1'],
+            'packing_list_ids.*' => ['integer', 'exists:packing_lists,id'],
             'vehicle_id' => ['nullable', 'exists:vehicles,id'],
             'driver_id' => ['nullable', 'exists:drivers,id'],
             'helper_id' => ['nullable', 'exists:drivers,id'],
+            'ekspedisi' => ['nullable', 'string', 'max:100'],
             'method' => ['required', 'in:armada,pickup_sendiri'],
             'destination_address' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
@@ -84,75 +93,91 @@ class DeliveryController extends Controller
             'boxes.*' => ['exists:packing_list_boxes,id'],
         ]);
 
-        $packing = PackingList::with('salesOrder')->findOrFail($data['packing_list_id']);
-        $this->guardBranch((int) $packing->branch_id);
+        $packings = PackingList::with(['salesOrder', 'customer', 'boxes.items'])
+            ->whereIn('id', $data['packing_list_ids'])
+            ->orderBy('id')
+            ->get();
 
+        if ($packings->isEmpty()) {
+            return back()->with('toast', 'Packing list tidak ditemukan.')->withErrors(['packing_list_ids' => 'Packing list tidak ditemukan.']);
+        }
+
+        foreach ($packings as $packing) {
+            $this->guardBranch((int) $packing->branch_id);
+        }
+
+        $primary = $packings->first();
         $vehicle = ! empty($data['vehicle_id']) ? Vehicle::find($data['vehicle_id']) : null;
         $driver = ! empty($data['driver_id']) ? Driver::find($data['driver_id']) : null;
         $helper = ! empty($data['helper_id']) ? Driver::find($data['helper_id']) : null;
 
-        $delivery = DB::transaction(function () use ($data, $packing, $vehicle, $driver, $helper) {
+        $delivery = DB::transaction(function () use ($data, $packings, $primary, $vehicle, $driver, $helper) {
             $delivery = Delivery::create([
                 'delivery_no' => $this->nextDocNumber('SJ-'.now()->format('Ym').'-', 'deliveries', 'delivery_no'),
-                'sales_order_id' => $packing->sales_order_id,
-                'packing_list_id' => $packing->id,
-                'branch_id' => $packing->branch_id,
+                'sales_order_id' => $primary->sales_order_id,
+                'packing_list_id' => $primary->id,
+                'branch_id' => $primary->branch_id,
                 'vehicle_id' => $vehicle?->id,
                 'driver_id' => $driver?->id,
                 'helper_id' => $helper?->id,
                 'driver_name' => $driver?->name,
                 'helper_name' => $helper?->name,
                 'destination_address' => $data['destination_address']
-                    ?? $packing->customer?->address
-                    ?? $packing->salesOrder?->customer?->address,
+                    ?? $primary->customer?->address
+                    ?? $primary->salesOrder?->customer?->address,
                 'method' => $data['method'],
+                'ekspedisi' => $data['ekspedisi'] ?? null,
                 'status' => 'pending_scan',
                 'user_id' => auth()->id(),
                 'notes' => $data['notes'] ?? null,
             ]);
 
+            $delivery->packingLists()->attach($packings->pluck('id'));
+
             $selected = $data['boxes'] ?? [];
 
-            foreach ($packing->boxes as $box) {
-                if ($selected && ! in_array($box->id, $selected, true) && ! in_array((string) $box->id, $selected, true)) {
-                    continue;
+            foreach ($packings as $packing) {
+                foreach ($packing->boxes as $box) {
+                    if ($selected && ! in_array($box->id, $selected, true) && ! in_array((string) $box->id, $selected, true)) {
+                        continue;
+                    }
+
+                    foreach ($box->items as $boxItem) {
+                        DeliveryItem::create([
+                            'delivery_id' => $delivery->id,
+                            'packing_list_box_id' => $box->id,
+                            'item_id' => $boxItem->item_id,
+                            'batch_id' => $boxItem->batch_id,
+                            'qty' => $boxItem->qty,
+                            'uom_id' => $boxItem->uom_id,
+                            'barcode' => $box->box_barcode,
+                            'status' => 'pending',
+                        ]);
+                    }
+
+                    $box->update(['status' => 'loaded']);
                 }
 
-                foreach ($box->items as $boxItem) {
-                    DeliveryItem::create([
-                        'delivery_id' => $delivery->id,
-                        'packing_list_box_id' => $box->id,
-                        'item_id' => $boxItem->item_id,
-                        'batch_id' => $boxItem->batch_id,
-                        'qty' => $boxItem->qty,
-                        'uom_id' => $boxItem->uom_id,
-                        'barcode' => $box->box_barcode,
-                        'status' => 'pending',
-                    ]);
-                }
-
-                $box->update(['status' => 'loaded']);
+                $packing->update(['status' => 'loaded']);
             }
 
             DeliveryTrack::create([
                 'delivery_id' => $delivery->id,
                 'status' => 'pending_scan',
-                'description' => 'Surat jalan dibuat, menunggu scan out dus ke armada '.($vehicle?->plate_number ?? '-'),
+                'description' => 'Surat jalan gabungan '.count($packings).' packing list dibuat, menunggu scan out ke armada '.($vehicle?->plate_number ?? '-'),
                 'user_id' => auth()->id(),
             ]);
-
-            $packing->update(['status' => 'loaded']);
 
             return $delivery;
         });
 
-        return redirect()->route('delivery.show', $delivery)->with('toast', "Surat jalan {$delivery->delivery_no} dibuat.");
+        return redirect()->route('delivery.show', $delivery)->with('toast', "Surat jalan {$delivery->delivery_no} dibuat dari {$packings->count()} packing list.");
     }
 
     public function show(Delivery $delivery): View
     {
         $delivery->load([
-            'salesOrder.customer', 'packingList', 'branch', 'vehicle',
+            'salesOrder.customer', 'packingList', 'packingLists.salesOrder', 'branch', 'vehicle',
             'driver', 'helper', 'items.item', 'items.uom', 'tracks.user',
         ]);
 
@@ -167,10 +192,61 @@ class DeliveryController extends Controller
                 'barcode' => $group->first()->barcode,
                 'status' => $group->every(fn ($i) => $i->status === 'scanned_out') ? 'scanned_out' : 'pending',
                 'scanned_out_at' => $group->max('scanned_out_at'),
+                'master_box_no' => $group->first()->master_box_no,
+                'item_ids' => $group->pluck('id')->all(),
                 'items' => $group,
                 'qty' => $group->sum('qty'),
             ])->values(),
         ]);
+    }
+
+    /**
+     * Konsolidasi koli/kardus: gabungkan beberapa unit/dus ke 1 master box sebelum naik truk.
+     */
+    public function consolidate(Request $request, Delivery $delivery): RedirectResponse
+    {
+        $this->guardBranch((int) $delivery->branch_id);
+
+        $data = $request->validate([
+            'item_ids' => ['required', 'array', 'min:1'],
+            'item_ids.*' => ['nullable', 'string', 'max:60'],
+        ]);
+
+        $ids = collect($data['item_ids'])
+            ->flatMap(fn (string $value) => explode(',', $value))
+            ->map(fn (string $value) => (int) trim($value))
+            ->filter()
+            ->values();
+
+        if (! in_array($delivery->status, ['pending_scan', 'scanned_out'], true)) {
+            return back()->with('toast', 'Konsolidasi koli hanya bisa dilakukan sebelum pengiriman berangkat.');
+        }
+
+        $items = $delivery->items()
+            ->whereIn('id', $ids->all())
+            ->where('status', 'pending')
+            ->get();
+
+        if ($items->isEmpty()) {
+            return back()->with('toast', 'Tidak ada muatan pending pada pilihan tersebut.');
+        }
+
+        $masterBoxNo = $this->nextDocNumber('HF-MB-'.now()->format('Ym').'-', 'delivery_items', 'master_box_no', 3);
+
+        DB::transaction(function () use ($delivery, $items, $masterBoxNo) {
+            foreach ($items as $item) {
+                $item->update(['master_box_no' => $masterBoxNo]);
+            }
+
+            DeliveryTrack::create([
+                'delivery_id' => $delivery->id,
+                'status' => $delivery->status,
+                'description' => $items->count().' baris muatan digabung menjadi koli/kardus master '.$masterBoxNo,
+                'user_id' => auth()->id(),
+            ]);
+        });
+
+        return back()->with('toast', $items->count().' baris muatan digabung jadi 1 master box '.$masterBoxNo.'.');
     }
 
     /**
@@ -203,6 +279,11 @@ class DeliveryController extends Controller
     private function doScanOut(Delivery $delivery, string $barcode): array
     {
         $items = $delivery->items()->where('barcode', $barcode)->get();
+
+        if ($items->isEmpty()) {
+            // Scan master box (hasil konsolidasi koli/kardus) → seluruh muatan di dalamnya.
+            $items = $delivery->items()->where('master_box_no', $barcode)->get();
+        }
 
         if ($items->isEmpty()) {
             return [false, "Barcode {$barcode} tidak ada dalam daftar muatan surat jalan ini."];
@@ -280,7 +361,7 @@ class DeliveryController extends Controller
 
     public function manifest(Delivery $delivery): View
     {
-        $delivery->load(['salesOrder.customer', 'packingList', 'branch', 'vehicle', 'driver', 'helper', 'items.item', 'items.uom']);
+        $delivery->load(['salesOrder.customer', 'packingList', 'packingLists.salesOrder', 'branch', 'vehicle', 'driver', 'helper', 'items.item', 'items.uom']);
 
         return view('delivery.manifest', ['delivery' => $delivery, 'statuses' => self::STATUSES]);
     }

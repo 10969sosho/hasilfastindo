@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'businesscentral' => [
+        'tenant_id' => env('BC_TENANT_ID'),
+        'client_id' => env('BC_CLIENT_ID'),
+        'client_secret' => env('BC_CLIENT_SECRET'),
+        'company' => env('BC_COMPANY'),
+        'environment' => env('BC_ENVIRONMENT'),
+        'token_url' => env('BC_TOKEN_URL', 'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'),
+        'odata_base_url' => env('BC_ODATA_BASE_URL', 'https://api.businesscentral.dynamics.com/v2.0/{tenant_id}/{environment}/ODataV4/Company({company})'),
+    ],
 ];

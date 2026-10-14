@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PackingList extends Model
@@ -59,8 +60,8 @@ class PackingList extends Model
         return $this->hasMany(PackingListItem::class);
     }
 
-    public function deliveries(): HasMany
+    public function deliveries(): BelongsToMany
     {
-        return $this->hasMany(Delivery::class);
+        return $this->belongsToMany(Delivery::class, 'delivery_packing_lists')->withTimestamps();
     }
 }

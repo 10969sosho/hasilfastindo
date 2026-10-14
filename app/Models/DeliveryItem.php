@@ -15,6 +15,7 @@ class DeliveryItem extends Model
         'qty',
         'uom_id',
         'barcode',
+        'master_box_no',
         'scanned_out_at',
         'status',
     ];

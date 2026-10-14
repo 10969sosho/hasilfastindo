@@ -12,7 +12,15 @@
         <a href="{{ route('summary.show', $outbound) }}" class="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">Radar SO</a>
         <a href="{{ route('packing.create', ['so_id' => $outbound->id]) }}" class="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">Packing List</a>
     </div>
-    <a href="{{ route('outbound.index') }}" class="btn btn-ghost">Kembali</a>
+    <div class="flex flex-wrap gap-2">
+        @if ($outbound->status === 'pending')
+            <form method="POST" action="{{ route('outbound.confirm', $outbound) }}">
+                @csrf
+                <button class="btn btn-success"><x-icon name="check" :size="16" /> Konfirmasi SO (Admin)</button>
+            </form>
+        @endif
+        <a href="{{ route('outbound.index') }}" class="btn btn-ghost">Kembali</a>
+    </div>
 </div>
 
 <form method="GET" class="card card-pad mb-5 flex flex-wrap items-end gap-3">
@@ -106,6 +114,11 @@
         {{-- Picking: scan serial UOM --}}
         <div class="card card-pad mt-5">
             <h2 class="mb-1 text-sm font-extrabold text-slate-900">Picking — Scan Serial UOM</h2>
+            @if ($outbound->status === 'pending')
+                <p class="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                    SO menunggu konfirmasi admin — picking baru bisa dilakukan setelah dikonfirmasi.
+                </p>
+            @endif
             <p class="hint mb-3">Scan QR label (<span class="font-mono">{{ 'SKU-UOM-RECEIVE-SEQ' }}</span>) untuk menandai unit keluar pada SO ini.</p>
             <div class="flex gap-2">
                 <input class="input font-mono flex-1" id="pickBarcode" placeholder="ABC123-BOX-GRN-202610-0001-001" autocomplete="off">

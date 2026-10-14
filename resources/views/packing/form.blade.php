@@ -72,7 +72,7 @@
 @else
     <div class="card card-pad">
         <h2 class="text-sm font-extrabold text-slate-900">Pilih Sales Order</h2>
-        <p class="hint mb-4">Hanya SO dengan status pending/processing/partial.</p>
+        <p class="hint mb-4">Hanya SO yang sudah dikonfirmasi admin (confirmed/processing/partial).</p>
         <div class="space-y-2">
             @forelse ($candidates as $c)
                 <a href="{{ route('packing.create', ['so_id' => $c->id]) }}"

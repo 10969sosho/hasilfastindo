@@ -16,20 +16,24 @@
 
 <table class="table mb-4">
     <tbody>
-        <tr><th style="width:18%">No. SO</th><td>{{ $delivery->salesOrder?->so_number }}</td><th style="width:16%">Packing List</th><td>{{ $delivery->packingList?->no_packing }}</td></tr>
-        <tr><th>Customer</th><td>{{ $delivery->salesOrder?->customer?->name ?? $delivery->packingList?->customer?->name ?? '-' }}</td>
+        <tr><th style="width:18%">No. SO</th>
+            <td>{{ $delivery->packingLists->pluck('salesOrder.so_number')->filter()->unique()->join(', ') ?: ($delivery->salesOrder?->so_number ?? '-') }}</td>
+            <th style="width:16%">Packing List</th>
+            <td>{{ $delivery->packingLists->pluck('no_packing')->join(', ') ?: ($delivery->packingList?->no_packing ?? '-') }}</td></tr>
+        <tr><th>Customer</th><td>{{ $delivery->packingLists->pluck('customer.name')->filter()->unique()->join(', ') ?: ($delivery->salesOrder?->customer?->name ?? $delivery->packingList?->customer?->name ?? '-') }}</td>
             <th>Metode</th><td>{{ $delivery->method === 'pickup_sendiri' ? 'Pickup Sendiri' : 'Armada' }}</td></tr>
         <tr><th>Armada</th><td>{{ $delivery->vehicle?->plate_number ?? '-' }} ({{ $delivery->vehicle?->vehicle_name ?? '-' }})</td>
             <th>Sopir</th><td>{{ $delivery->driver_name ?? '-' }} / Helper: {{ $delivery->helper_name ?? '-' }}</td></tr>
-        <tr><th>Tujuan</th><td colspan="3">{{ $delivery->destination_address ?? '-' }}</td></tr>
-        <tr><th>Status</th><td>{{ $statuses[$delivery->status] ?? $delivery->status }}</td>
+        <tr><th>Ekspedisi</th><td>{{ $delivery->ekspedisi ?? '-' }}</td>
             <th>Catatan</th><td>{{ $delivery->notes ?: '-' }}</td></tr>
+        <tr><th>Tujuan</th><td colspan="3">{{ $delivery->destination_address ?? '-' }}</td></tr>
+        <tr><th>Status</th><td colspan="3">{{ $statuses[$delivery->status] ?? $delivery->status }}</td></tr>
     </tbody>
 </table>
 
 <h2 class="mb-1 text-sm font-extrabold">Daftar Muatan</h2>
 <table class="table">
-    <thead><tr><th>No.</th><th>Barcode Dus</th><th>Item</th><th class="text-right">Qty</th><th>Satuan</th><th>Scan Out</th></tr></thead>
+    <thead><tr><th>No.</th><th>Barcode Dus</th><th>Master Box</th><th>Item</th><th class="text-right">Qty</th><th>Satuan</th><th>Scan Out</th></tr></thead>
     <tbody>
     @php $no = 0; @endphp
     @foreach ($delivery->items->groupBy('barcode') as $barcode => $group)
@@ -41,6 +45,7 @@
                         <div class="mx-auto" data-qr="{{ $barcode }}" data-qr-size="80"></div>
                         <p class="font-mono text-[10px]">{{ $barcode }}</p>
                     </td>
+                    <td rowspan="{{ max(1, $group->count()) }}" class="text-center font-mono text-[10px]">{{ $group->first()->master_box_no ?: '-' }}</td>
                 @endif
                 <td>{{ $item->item?->name }} <span style="color:#64748b">({{ $item->item?->sku }})</span></td>
                 <td style="text-align:right"><b>{{ number_format($item->qty) }}</b></td>

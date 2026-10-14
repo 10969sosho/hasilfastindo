@@ -23,7 +23,7 @@ class SummarySoController extends Controller
                 ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', '%'.$request->string('q').'%'))));
 
         if (! $request->boolean('all')) {
-            $query->whereIn('status', ['pending', 'processing', 'partial', 'completed']);
+            $query->whereIn('status', [...SalesOrder::OPEN_STATUSES, 'completed']);
         }
 
         $orders = $this->scopeBranch($query)->orderByDesc('order_date')->paginate(10)->withQueryString();
@@ -54,11 +54,11 @@ class SummarySoController extends Controller
         ]);
 
         $stats = [
-            'open' => $this->scopeBranch(SalesOrder::query())->whereIn('status', ['pending', 'processing', 'partial'])->count(),
+            'open' => $this->scopeBranch(SalesOrder::query())->whereIn('status', SalesOrder::OPEN_STATUSES)->count(),
             'partial' => $this->scopeBranch(SalesOrder::query())->where('status', 'partial')->count(),
             'completed' => $this->scopeBranch(SalesOrder::query())->where('status', 'completed')->count(),
             'not_taken' => $this->scopeBranch(SalesOrder::query())
-                ->whereIn('status', ['pending', 'processing', 'partial'])
+                ->whereIn('status', SalesOrder::OPEN_STATUSES)
                 ->with('items')
                 ->get()
                 ->flatMap->items

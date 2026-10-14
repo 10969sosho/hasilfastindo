@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Delivery extends Model
@@ -24,6 +25,7 @@ class Delivery extends Model
         'helper_name',
         'destination_address',
         'method',
+        'ekspedisi',
         'departure_time',
         'arrival_time',
         'status',
@@ -47,6 +49,12 @@ class Delivery extends Model
     public function packingList(): BelongsTo
     {
         return $this->belongsTo(PackingList::class);
+    }
+
+    /** 1 Surat Jalan bisa menggabungkan beberapa packing list / SO. */
+    public function packingLists(): BelongsToMany
+    {
+        return $this->belongsToMany(PackingList::class, 'delivery_packing_lists')->withTimestamps();
     }
 
     public function branch(): BelongsTo

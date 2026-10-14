@@ -11,7 +11,6 @@ use App\Http\Controllers\MonitoringPusatController;
 use App\Http\Controllers\OutboundController;
 use App\Http\Controllers\PackingController;
 use App\Http\Controllers\PartnerController;
-use App\Http\Controllers\RepackController;
 use App\Http\Controllers\StockOpnameController;
 use App\Http\Controllers\SummarySoController;
 use App\Http\Controllers\TransferController;
@@ -100,6 +99,7 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::get('/outbound/create', [OutboundController::class, 'create'])->name('outbound.create');
     Route::post('/outbound', [OutboundController::class, 'store'])->name('outbound.store');
     Route::get('/outbound/{outbound}', [OutboundController::class, 'show'])->name('outbound.show');
+    Route::post('/outbound/{outbound}/confirm', [OutboundController::class, 'confirm'])->name('outbound.confirm');
     Route::post('/outbound/{outbound}/fulfill', [OutboundController::class, 'fulfill'])->name('outbound.fulfill');
     Route::post('/outbound/{outbound}/auto-fulfill', [OutboundController::class, 'autoFulfill'])->name('outbound.auto');
     Route::post('/outbound/{outbound}/pick', [OutboundController::class, 'pickScan'])->name('outbound.pick');
@@ -115,14 +115,6 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::post('/transfers/{transfer}/ship', [TransferController::class, 'ship'])->name('transfer.ship');
     Route::post('/transfers/{transfer}/receive', [TransferController::class, 'receive'])->name('transfer.receive');
     Route::delete('/transfers/{transfer}', [TransferController::class, 'destroy'])->name('transfer.destroy');
-
-    /* ------------------------------------------------------ Repack/Konversi */
-    Route::get('/repack', [RepackController::class, 'index'])->name('repack.index');
-    Route::get('/repack/create', [RepackController::class, 'create'])->name('repack.create');
-    Route::post('/repack', [RepackController::class, 'store'])->name('repack.store');
-    Route::get('/repack/bins', [RepackController::class, 'bins'])->name('repack.bins');
-    Route::get('/repack/stocks', [RepackController::class, 'stocks'])->name('repack.stocks');
-    Route::get('/repack/{repack}', [RepackController::class, 'show'])->name('repack.show');
 
     /* ------------------------------------------------------- Radar Summary SO */
     Route::get('/summary-so', [SummarySoController::class, 'index'])->name('summary.index');
@@ -143,6 +135,7 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::post('/delivery', [DeliveryController::class, 'store'])->name('delivery.store');
     Route::get('/delivery/vehicles', [DeliveryController::class, 'openVehicles'])->name('delivery.vehicles');
     Route::get('/delivery/{delivery}', [DeliveryController::class, 'show'])->name('delivery.show');
+    Route::post('/delivery/{delivery}/consolidate', [DeliveryController::class, 'consolidate'])->name('delivery.consolidate');
     Route::post('/delivery/{delivery}/scan-out', [DeliveryController::class, 'scanOut'])->name('delivery.scan');
     Route::post('/delivery/{delivery}/scan-out/api', [DeliveryController::class, 'scanOutApi'])->name('delivery.scan.api');
     Route::post('/delivery/{delivery}/status', [DeliveryController::class, 'updateStatus'])->name('delivery.status');

@@ -69,7 +69,6 @@
         ['type' => 'link', 'label' => 'Picking & Packing', 'icon' => 'clipboard', 'match' => 'packing.', 'route' => 'packing.index'],
         ['type' => 'link', 'label' => 'Pengiriman & Scan Out', 'icon' => 'truck', 'match' => 'delivery.', 'route' => 'delivery.index'],
         ['type' => 'link', 'label' => 'Transfer Antar Cabang', 'icon' => 'transfer', 'match' => 'transfer.', 'route' => 'transfer.index'],
-        ['type' => 'link', 'label' => 'Repack & Konversi', 'icon' => 'repack', 'match' => 'repack.', 'route' => 'repack.index'],
         ['type' => 'link', 'label' => 'Stok Opname', 'icon' => 'scan', 'match' => 'opname.', 'route' => 'opname.index'],
         ['type' => 'section', 'label' => 'Monitoring'],
         ['type' => 'link', 'label' => 'Monitoring Pusat', 'icon' => 'chart', 'match' => 'monitoring.', 'route' => 'monitoring.index', 'roles' => ['super_admin', 'central']],

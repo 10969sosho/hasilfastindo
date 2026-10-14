@@ -54,7 +54,7 @@ class MonitoringPusatController extends Controller
         // Angka agregat status per item+cabang
         $reserved = $this->aggregate(SalesOrder::query()
             ->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $this->activeBranchId()))
-            ->whereIn('status', ['pending', 'processing', 'partial'])
+            ->whereIn('status', SalesOrder::OPEN_STATUSES)
             ->join('sales_order_items', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
             ->select('sales_orders.branch_id', 'sales_order_items.item_id', DB::raw('SUM(requested_qty - fulfilled_qty) AS qty'))
             ->whereRaw('requested_qty > fulfilled_qty')

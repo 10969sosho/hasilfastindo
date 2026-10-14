@@ -20,8 +20,12 @@
                     Qty UoM {{ $s->qty_uom_in }} {{ $s->uom }}
                     = {{ rtrim(rtrim(number_format($s->qty_smallest_unit_in, 2, '.', ''), '0'), '.') }} PCS
                 </p>
+                <p class="mt-0.5 text-[11px] font-bold text-slate-700">
+                    Berat: {{ $s->weight !== null ? rtrim(rtrim(number_format($s->weight, 3, '.', ''), '0'), '.') : '-' }} kg
+                    · BIN/Rak: {{ $s->bin_no ?: '-' }}
+                </p>
                 <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    RC: {{ $s->receive_no }} · PO: {{ $s->po_no ?: '-' }} · BIN: {{ $s->bin_no ?: '-' }}
+                    RC: {{ $s->receive_no }} · PO: {{ $s->po_no ?: '-' }}
                 </p>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     {{ $s->input_receive_date_time?->format('d/m/Y H:i') ?? '-' }} · HASIL FASTINDO

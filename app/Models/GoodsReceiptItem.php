@@ -19,6 +19,9 @@ class GoodsReceiptItem extends Model
         'nav_qty',
         'qty_placed',
         'target_bin_id',
+        'bin_no',
+        'weight',
+        'unit_overrides',
         'original_barcode',
         'notes',
     ];
@@ -29,6 +32,8 @@ class GoodsReceiptItem extends Model
         'total_pcs' => 'float',
         'nav_qty' => 'float',
         'qty_placed' => 'float',
+        'weight' => 'float',
+        'unit_overrides' => 'array',
     ];
 
     public function goodsReceipt(): BelongsTo

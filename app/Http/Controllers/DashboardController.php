@@ -29,7 +29,7 @@ class DashboardController extends Controller
             ->sum(DB::raw('stocks.quantity_pcs * items.cost_price'));
 
         $soQuery = $this->scopeBranch(SalesOrder::query());
-        $openSo = (clone $soQuery)->whereIn('status', ['draft', 'pending', 'processing', 'partial'])->count();
+        $openSo = (clone $soQuery)->whereIn('status', ['draft', ...SalesOrder::OPEN_STATUSES])->count();
         $monthSo = (clone $soQuery)
             ->whereBetween('order_date', [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()])
             ->count();
@@ -81,7 +81,7 @@ class DashboardController extends Controller
         $notTaken = SalesOrder::query()
             ->with(['customer', 'branch', 'items.item', 'items.uom'])
             ->when(! $allBranch && $branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->whereIn('status', ['pending', 'processing', 'partial'])
+            ->whereIn('status', SalesOrder::OPEN_STATUSES)
             ->orderBy('order_date')
             ->get()
             ->flatMap(fn (SalesOrder $so) => $so->items->map(fn ($i) => [

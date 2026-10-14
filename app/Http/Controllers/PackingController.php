@@ -32,7 +32,7 @@ class PackingController extends Controller
         $order = $soId ? SalesOrder::with(['customer', 'branch', 'items.item', 'items.uom'])->findOrFail($soId) : null;
 
         $candidates = SalesOrder::with('customer')
-            ->whereIn('status', ['pending', 'processing', 'partial'])
+            ->whereIn('status', ['confirmed', 'processing', 'partial'])
             ->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $this->activeBranchId()))
             ->latest('order_date')
             ->limit(50)

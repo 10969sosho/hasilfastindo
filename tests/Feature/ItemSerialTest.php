@@ -154,6 +154,14 @@ class ItemSerialTest extends TestCase
 
         $so = $this->createSalesOrder();
 
+        // Picking hanya setelah konfirmasi admin.
+        $this->actingAs($this->user)->post(route('outbound.pick', $so), [
+            'barcode' => $serial->kode_uom_serialno,
+        ])->assertStatus(422);
+
+        $this->actingAs($this->user)->post(route('outbound.confirm', $so))->assertRedirect();
+        $this->assertSame('confirmed', $so->fresh()->status);
+
         $this->actingAs($this->user)->post(route('outbound.pick', $so), [
             'barcode' => $serial->kode_uom_serialno,
         ])
@@ -177,6 +185,7 @@ class ItemSerialTest extends TestCase
 
         $otherItem = Item::create(['sku' => 'ZZZ999', 'name' => 'Item Lain', 'category_id' => $this->item->category_id, 'base_uom_id' => $this->pcs->id, 'is_active' => true]);
         $other = $this->createSalesOrder('SO-202610-9999', $otherItem);
+        $this->actingAs($this->user)->post(route('outbound.confirm', $other))->assertRedirect();
 
         $this->actingAs($this->user)->post(route('outbound.pick', $other), [
             'barcode' => $serial->kode_uom_serialno,

@@ -21,7 +21,7 @@
                     <li class="flex gap-2"><span class="text-emerald-400">✔</span> Penerimaan, putaway, dan BIN code per rak</li>
                     <li class="flex gap-2"><span class="text-emerald-400">✔</span> Pemenuhan SO FIFO & cross-branch</li>
                     <li class="flex gap-2"><span class="text-emerald-400">✔</span> Packing dus ber-barcode + scan out armada</li>
-                    <li class="flex gap-2"><span class="text-emerald-400">✔</span> Transfer, repack, stok opname, monitoring pusat</li>
+                    <li class="flex gap-2"><span class="text-emerald-400">✔</span> Transfer, stok opname, monitoring pusat</li>
                 </ul>
             </div>
 

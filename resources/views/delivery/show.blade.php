@@ -7,11 +7,14 @@
 <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
     <div class="flex flex-wrap gap-2">
         <x-badge status="{{ $delivery->status }}" label="{{ $statuses[$delivery->status] ?? ucfirst(str_replace('_', ' ', $delivery->status)) }}" />
-        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">SO {{ $delivery->salesOrder?->so_number }}</span>
-        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{{ $delivery->packingList?->no_packing }}</span>
+        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">SO {{ $delivery->packingLists->pluck('salesOrder.so_number')->filter()->unique()->join(', ') ?: ($delivery->salesOrder?->so_number ?: '-') }}</span>
+        @foreach ($delivery->packingLists as $pl)
+            <a href="{{ route('packing.show', $pl) }}" class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100">{{ $pl->no_packing }}</a>
+        @endforeach
         <span class="rounded-full {{ $delivery->method === 'pickup_sendiri' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700' }} px-3 py-1 text-xs font-bold">
             {{ $delivery->method === 'pickup_sendiri' ? 'Pickup Sendiri' : 'Armada' }}
         </span>
+        @if ($delivery->ekspedisi)<span class="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">Ekspedisi: {{ $delivery->ekspedisi }}</span>@endif
     </div>
     <div class="flex gap-2">
         <a href="{{ route('delivery.manifest', $delivery) }}" class="btn btn-ghost"><x-icon name="printer" :size="16" /> Manifest</a>
@@ -26,7 +29,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 class="text-sm font-extrabold text-slate-900">Scan Out Muatan</h2>
-                    <p class="hint">Scan barcode dus (HF-BOX-...) sebelum masuk kendaraan.</p>
+                    <p class="hint">Scan barcode dus (HF-BOX-...) atau master box hasil konsolidasi (HF-MB-...) sebelum masuk kendaraan.</p>
                 </div>
                 <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-extrabold text-white">
                     {{ $scanned }} / {{ $total }} dus
@@ -37,7 +40,7 @@
                 <form method="POST" action="{{ route('delivery.scan', $delivery) }}" class="mt-4 flex flex-wrap gap-2">
                     @csrf
                     <input class="input flex-1 min-w-[16rem] font-mono" name="barcode" id="scanInput"
-                           placeholder="Scan / ketik barcode dus lalu Enter" autocomplete="off" autofocus>
+                           placeholder="Scan / ketik barcode dus atau master box lalu Enter" autocomplete="off" autofocus>
                     <button class="btn btn-primary"><x-icon name="inbound" :size="16" /> Scan Out</button>
                 </form>
                 @error('barcode')<p class="mt-2 text-xs font-bold text-rose-600">{{ $message }}</p>@enderror
@@ -47,11 +50,12 @@
 
             <div class="table-scroll mt-4">
                 <table class="table">
-                    <thead><tr><th>Barcode</th><th>Isi</th><th class="text-right">Qty</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Barcode</th><th>Master Box</th><th>Isi</th><th class="text-right">Qty</th><th>Status</th></tr></thead>
                     <tbody>
                     @foreach ($manifest as $m)
                         <tr>
                             <td class="font-mono text-xs font-bold text-indigo-700">{{ $m['barcode'] }}</td>
+                            <td class="font-mono text-[11px] font-bold text-slate-700">{{ $m['master_box_no'] ?: '-' }}</td>
                             <td>
                                 @foreach ($m['items'] as $mi)
                                     <p class="text-xs text-slate-600">{{ $mi->item?->name }} — {{ number_format($mi->qty) }} {{ $mi->uom?->code }}</p>
@@ -72,6 +76,44 @@
                 </table>
             </div>
         </div>
+
+        {{-- Konsolidasi koli/kardus sebelum naik truk --}}
+        @if (in_array($delivery->status, ['pending_scan', 'scanned_out'], true) && $manifest->contains('status', 'pending'))
+            <div class="card card-pad">
+                <h2 class="mb-1 text-sm font-extrabold text-slate-900">Konsolidasi Koli / Kardus</h2>
+                <p class="hint mb-4">Gabungkan beberapa unit/dus ke dalam 1 master box pengiriman sebelum barang naik ke truk.</p>
+
+                <form method="POST" action="{{ route('delivery.consolidate', $delivery) }}">
+                    @csrf
+                    <div class="table-scroll">
+                        <table class="table">
+                            <thead><tr><th class="w-10"></th><th>Barcode Dus</th><th>Isi</th><th class="text-right">Qty</th><th>Master Box</th></tr></thead>
+                            <tbody>
+                            @foreach ($manifest as $m)
+                                @if ($m['status'] === 'pending')
+                                    <tr>
+                                        <td><input type="checkbox" name="item_ids[]" value="{{ implode(',', $m['item_ids']) }}" class="cons-check"></td>
+                                        <td class="font-mono text-xs font-bold text-indigo-700">{{ $m['barcode'] }}</td>
+                                        <td class="text-xs text-slate-600">
+                                            @foreach ($m['items'] as $mi)
+                                                {{ $mi->item?->name }} ({{ number_format($mi->qty) }} {{ $mi->uom?->code }}){{ $loop->last ? '' : ', ' }}
+                                            @endforeach
+                                        </td>
+                                        <td class="text-right font-bold">{{ number_format($m['qty']) }}</td>
+                                        <td class="font-mono text-[11px] text-slate-600">{{ $m['master_box_no'] ?: '-' }}</td>
+                                    </tr>
+                                @endif
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 flex flex-wrap items-center gap-3">
+                        <button class="btn btn-dark" onclick="return collectChecks(this.form)"> <x-icon name="transfer" :size="16" /> Konsolidasi jadi 1 Master Box</button>
+                        <span class="hint" id="consCount">Belum ada dus dipilih</span>
+                    </div>
+                </form>
+            </div>
+        @endif
 
         {{-- Status update --}}
         <div class="card card-pad">
@@ -111,6 +153,7 @@
             <dl class="space-y-2 text-sm">
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">No. SJ</dt><dd class="font-mono font-bold">{{ $delivery->delivery_no }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Armada</dt><dd class="font-semibold">{{ $delivery->vehicle?->plate_number ?? '-' }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Ekspedisi</dt><dd class="text-right font-semibold">{{ $delivery->ekspedisi ?: '-' }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Sopir</dt><dd class="font-semibold">{{ $delivery->driver_name ?? '-' }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Helper</dt><dd class="font-semibold">{{ $delivery->helper_name ?? '-' }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Berangkat</dt><dd class="font-semibold">{{ $delivery->departure_time?->format('d/m H:i') ?: '-' }}</dd></div>
@@ -159,5 +202,22 @@
             if (input.value.trim()) form.submit();
         });
     }
+
+    const consCount = document.getElementById('consCount');
+    document.querySelectorAll('.cons-check').forEach(el => {
+        el.addEventListener('change', () => {
+            const n = document.querySelectorAll('.cons-check:checked').length;
+            if (consCount) consCount.textContent = n ? n + ' dus siap digabung' : 'Belum ada dus dipilih';
+        });
+    });
+
+    window.collectChecks = function (form) {
+        const n = form.querySelectorAll('.cons-check:checked').length;
+        if (!n) {
+            alert('Pilih minimal satu dus untuk dikonsolidasi.');
+            return false;
+        }
+        return confirm('Gabungkan ' + n + ' dus ke dalam 1 master box sebelum naik truk?');
+    };
 </script>
 @endpush

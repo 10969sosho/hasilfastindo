@@ -28,6 +28,7 @@ class ItemSerial extends Model
         'qty_uom_in',
         'qty_smallest_unit_in',
         'bin_no',
+        'weight',
         'input_receive_by',
         'input_receive_date_time',
         'pick_no',
@@ -42,6 +43,7 @@ class ItemSerial extends Model
     protected $casts = [
         'qty_uom_in' => 'integer',
         'qty_smallest_unit_in' => 'float',
+        'weight' => 'float',
         'qty_uom_out' => 'integer',
         'qty_smallest_unit_out' => 'float',
         'input_receive_date_time' => 'datetime',
@@ -92,6 +94,7 @@ class ItemSerial extends Model
             'po_no' => $this->po_no,
             'supplier' => $this->supplier,
             'bin_no' => $this->bin_no,
+            'weight' => $this->weight,
             'location' => $this->location?->code,
             'picked' => $this->isPicked(),
             'pick_no' => $this->pick_no,
@@ -128,11 +131,13 @@ class ItemSerial extends Model
             $sku = $line->item->sku;
             $uom = $line->receivedUom?->code ?: 'PCS';
             $location = $line->targetBin ?: $receipt->location;
+            $overrides = $line->unit_overrides ?? [];
             $key = $sku.'|'.$uom;
             $sequence[$key] = $sequence[$key] ?? 0;
 
             for ($i = 0; $i < $qty; $i++) {
                 $sequence[$key]++;
+                $override = is_array($overrides[$i] ?? null) ? $overrides[$i] : [];
 
                 static::create([
                     'kode_uom_serialno' => sprintf('%s-%s-%s-%03d', $sku, $uom, $receipt->doc_number, $sequence[$key]),
@@ -144,7 +149,8 @@ class ItemSerial extends Model
                     'supplier' => $receipt->supplier?->name,
                     'qty_uom_in' => 1,
                     'qty_smallest_unit_in' => (float) $line->conversion_multiplier,
-                    'bin_no' => $location?->code,
+                    'bin_no' => ($override['bin_no'] ?? null) ?: ($line->bin_no ?: $location?->code),
+                    'weight' => ($override['weight'] ?? null) ?? $line->weight,
                     'input_receive_by' => $receipt->user_id ?? auth()->id(),
                     'input_receive_date_time' => $receipt->received_at ?? now(),
                     'notes' => $line->notes ?: $receipt->notes,
