@@ -3,11 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\NavPurchaseOrder;
+use App\Services\BusinessCentralService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class NavPurchaseOrderController extends Controller
 {
+    public function sync(Request $request, BusinessCentralService $bcService): RedirectResponse
+    {
+        $count = $bcService->syncPurchaseOrders((int) $request->input('limit', 50));
+
+        return back()->with('toast', "{$count} Purchase Order berhasil disinkronkan dari Microsoft Dynamics NAV");
+    }
+
     public function index(Request $request): View
     {
         $pos = NavPurchaseOrder::with('items')

@@ -30,7 +30,14 @@
         <button class="btn btn-ghost">Terapkan Filter</button>
     </form>
 
-    <a href="{{ route('inbound.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> Penerimaan Baru</a>
+    <div class="flex flex-wrap items-end gap-3">
+        <form method="POST" action="{{ route('nav-po.sync') }}">
+            @csrf
+            <button class="btn btn-ghost" title="Tarik Purchase Order terbaru dari Microsoft Dynamics NAV"><x-icon name="sync" :size="16" /> Sinkronisasi dari NAV</button>
+        </form>
+
+        <a href="{{ route('inbound.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> Penerimaan Baru</a>
+    </div>
 </div>
 
 <div class="card overflow-hidden">

@@ -97,6 +97,7 @@ Route::middleware(['auth', 'branch'])->group(function () {
 
     /* ------------------------------------------ Staging: PO dari NAV/BC */
     Route::get('/nav-purchase-orders', [NavPurchaseOrderController::class, 'index'])->name('nav-po.index');
+    Route::post('/nav-purchase-orders/sync', [NavPurchaseOrderController::class, 'sync'])->name('nav-po.sync');
     Route::get('/nav-purchase-orders/{purchaseOrder}', [NavPurchaseOrderController::class, 'show'])->name('nav-po.show');
 
     /* -------------------------------------------------- Outbound (SO/GI) */

@@ -35,6 +35,15 @@ return [
         ],
     ],
 
+    'business_central' => [
+        'tenant_id' => env('NAV_TENANT_ID', 'aa71ccae-3104-44a8-9df3-363d9245b5b1'),
+        'client_id' => env('NAV_CLIENT_ID', '7ed67f36-d0eb-4f5f-9b4f-c9b2cccd0951'),
+        'client_secret' => env('NAV_CLIENT_SECRET', ''),
+        'environment' => env('NAV_ENVIRONMENT', 'Training'),
+        'company_id' => env('NAV_COMPANY_ID', '3d81e397-1bbd-ef11-b8ea-000d3aa13a05'),
+        'company_name' => env('NAV_COMPANY_NAME', 'PT Hasil Fastindo'),
+    ],
+
     'businesscentral' => [
         'tenant_id' => env('BC_TENANT_ID'),
         'client_id' => env('BC_CLIENT_ID'),
