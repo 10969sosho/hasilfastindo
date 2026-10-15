@@ -262,9 +262,12 @@ class BusinessCentralService
 
         $uom = Uom::firstOrCreate(['code' => $uomCode], ['name' => $uomCode]);
 
+        $category = \App\Models\Category::first() ?? \App\Models\Category::create(['code' => 'GENERAL', 'name' => 'Umum']);
+
         Item::create([
             'sku' => $sku,
             'name' => $itemName,
+            'category_id' => $category->id,
             'base_uom_id' => $uom->id,
             'is_active' => true,
         ]);
