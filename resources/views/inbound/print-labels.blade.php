@@ -6,10 +6,15 @@
 <div class="mb-4">
     <h1 class="text-lg font-extrabold">{{ $serials->isNotEmpty() ? 'Label Serial UOM' : 'Label QR Code Penerimaan' }}</h1>
     <p class="text-xs text-slate-500">{{ $gr->doc_number }} · PO {{ $gr->po_no ?: '-' }} · {{ $gr->supplier?->name }} · {{ $gr->branch?->name }} · {{ now()->format('d/m/Y H:i') }}</p>
+    @if (! empty($filtered))
+        <p class="text-xs font-bold text-indigo-700">Filter: {{ $filterLabel }}</p>
+    @endif
 </div>
 
-@if ($serials->isNotEmpty())
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+@if ($filtered && $serials->isEmpty())
+    <p class="rounded-lg bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600">Tidak ada serial untuk filter ini.</p>
+@elseif ($serials->isNotEmpty())
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         @foreach ($serials as $s)
             <div class="rounded-lg border border-slate-300 p-3 text-center">
                 <p class="font-mono text-[11px] font-bold tracking-tight break-all">{{ $s->kode_uom_serialno }}</p>

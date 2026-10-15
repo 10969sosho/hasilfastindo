@@ -152,6 +152,18 @@ class ItemSerialTest extends TestCase
             ->assertOk()
             ->assertSee($serial->kode_uom_serialno, false);
 
+        $this->actingAs($this->user)->get(route('inbound.print', ['inbound' => $gr, 'sku' => $serial->sku]))
+            ->assertOk()
+            ->assertSee($serial->kode_uom_serialno, false);
+
+        $this->actingAs($this->user)->get(route('inbound.print', ['inbound' => $gr, 'serial' => $serial->kode_uom_serialno]))
+            ->assertOk()
+            ->assertSee($serial->kode_uom_serialno, false);
+
+        $this->actingAs($this->user)->get(route('inbound.print', ['inbound' => $gr, 'sku' => 'TIDAK-ADA']))
+            ->assertOk()
+            ->assertSee('Tidak ada serial untuk filter ini', false);
+
         $so = $this->createSalesOrder();
 
         // Picking hanya setelah konfirmasi admin.

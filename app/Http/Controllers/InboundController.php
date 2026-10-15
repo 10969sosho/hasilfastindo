@@ -308,14 +308,28 @@ class InboundController extends Controller
         return back()->with('toast', $updated ? "Putaway selesai: {$message}" : $message);
     }
 
-    public function printLabels(GoodsReceipt $inbound): View
+    public function printLabels(Request $request, GoodsReceipt $inbound): View
     {
         $inbound->load(['items.item', 'items.receivedUom', 'supplier', 'branch']);
 
-        $serials = $inbound->serials()->get();
+        $sku = trim((string) $request->query('sku'));
+        $serialNo = trim((string) $request->query('serial'));
+        $filtered = $sku !== '' || $serialNo !== '';
+
+        $serials = $inbound->serials()
+            ->when($sku !== '', fn ($q) => $q->where('sku', $sku))
+            ->when($serialNo !== '', fn ($q) => $q->where('kode_uom_serialno', $serialNo))
+            ->get();
+
         $itemNames = Item::whereIn('sku', $serials->pluck('sku')->unique())->pluck('name', 'sku');
 
-        return view('inbound.print-labels', ['gr' => $inbound, 'serials' => $serials, 'itemNames' => $itemNames]);
+        return view('inbound.print-labels', [
+            'gr' => $inbound,
+            'serials' => $serials,
+            'itemNames' => $itemNames,
+            'filtered' => $filtered,
+            'filterLabel' => $serialNo !== '' ? $serialNo : $sku,
+        ]);
     }
 
     public function barcodeLookup(Request $request)

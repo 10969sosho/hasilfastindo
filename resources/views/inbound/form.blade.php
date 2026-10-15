@@ -4,10 +4,39 @@
 @section('subtitle', 'Input konversi UOM, berat & BIN — serial QR dibuat otomatis per unit')
 
 @section('content')
-<form method="POST" action="{{ route('inbound.store') }}" class="grid gap-5 lg:grid-cols-3">
+<form method="POST" action="{{ route('inbound.store') }}" class="w-full max-w-full space-y-5">
     @csrf
 
-    <div class="space-y-5 lg:col-span-2">
+    {{-- Panel atas: Tarik PO NAV + Alur (dipindah dari sidebar kanan agar tabel item lebar penuh) --}}
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div class="card card-pad">
+            <h2 class="mb-3 text-sm font-extrabold text-slate-900">Tarik dari PO NAV</h2>
+            @if ($navPos->isEmpty())
+                <p class="hint">Belum ada PO NAV menunggu diproses.</p>
+            @else
+                <p class="hint mb-2">Pilih PO NAV lalu tarik datanya ke form ini.</p>
+                <select class="input mb-2" id="navPoPick">
+                    @foreach ($navPos as $p)
+                        <option value="{{ $p->id }}" @selected($navPo?->id === $p->id)>{{ $p->po_no }} — {{ $p->supplier_name }}</option>
+                    @endforeach
+                </select>
+                <button type="button" class="btn btn-dark w-full" onclick="pullNavPo()"><x-icon name="inbound" :size="16" /> Tarik dari PO NAV</button>
+                <a href="{{ route('nav-po.index') }}" class="hint mt-2 block underline">Buka daftar PO NAV</a>
+            @endif
+        </div>
+
+        <div class="card card-pad bg-slate-50 md:col-span-2 xl:col-span-1">
+            <p class="text-xs font-bold text-slate-600">Alur</p>
+            <ol class="hint mt-2 list-inside list-decimal space-y-1 sm:columns-2 xl:columns-1">
+                <li>Simpan dokumen (draft)</li>
+                <li>Terima barang → serial QR per unit + stok masuk BIN staging</li>
+                <li>Putaway ke BIN tujuan</li>
+                <li>Cetak label (berat &amp; BIN per unit)</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="w-full max-w-full space-y-5">
         @if ($navPo)
             <div class="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
                 <x-icon name="inbound" :size="16" />
@@ -126,10 +155,10 @@
 
             <div id="navSummary" class="mb-4 flex flex-wrap gap-2"></div>
 
-            <div class="table-scroll">
-                <table class="table">
+            <div class="table-scroll w-full">
+                <table class="table w-full min-w-[72rem]">
                     <thead>
-                        <tr><th class="min-w-[13rem]">Item</th><th>Batch No</th><th>Satuan</th><th class="w-28">Qty UOM</th><th class="w-32">Total PCS</th><th class="w-32">Isi PCS/UOM</th><th class="w-28">Qty NAV (PCS)</th><th>BIN Tujuan</th><th></th></tr>
+                        <tr><th class="min-w-[16rem]">Item</th><th class="min-w-[8rem]">Batch No</th><th class="min-w-[7rem]">Satuan</th><th class="w-28">Qty UOM</th><th class="w-32">Total PCS</th><th class="w-32">Isi PCS/UOM</th><th class="w-32">Qty NAV (PCS)</th><th class="min-w-[9rem]">Berat (kg)</th><th class="min-w-[9rem]">BIN Tujuan</th><th class="w-14"></th></tr>
                     </thead>
                     <tbody id="itemBody">
                         @php
@@ -159,6 +188,7 @@
                             <td><input class="input total-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][total_pcs]" value="{{ old("items.$idx.total_pcs", $row['total_pcs']) }}" placeholder="90000"></td>
                             <td><input class="input per-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][pcs_per_uom]" value="{{ old("items.$idx.pcs_per_uom") }}" placeholder="10000"></td>
                             <td><input class="input nav-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][nav_qty]" value="{{ old("items.$idx.nav_qty", $row['nav_qty']) }}" placeholder="Opsional" disabled></td>
+                            <td><input class="input weight-row text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][weight]" value="{{ old("items.$idx.weight") }}" placeholder="ikut atas"></td>
                             <td>
                                 <select class="input" name="items[{{ $idx }}][target_bin_id]">
                                     <option value="">- Ikut BIN staging -</option>
@@ -176,38 +206,12 @@
         </div>
     </div>
 
-    <div class="space-y-4">
-        <div class="card card-pad">
-            <h2 class="mb-3 text-sm font-extrabold text-slate-900">Tarik dari PO NAV</h2>
-            @if ($navPos->isEmpty())
-                <p class="hint">Belum ada PO NAV menunggu diproses.</p>
-            @else
-                <p class="hint mb-2">Pilih PO NAV lalu tarik datanya ke form ini.</p>
-                <select class="input mb-2" id="navPoPick">
-                    @foreach ($navPos as $p)
-                        <option value="{{ $p->id }}" @selected($navPo?->id === $p->id)>{{ $p->po_no }} — {{ $p->supplier_name }}</option>
-                    @endforeach
-                </select>
-                <button type="button" class="btn btn-dark w-full" onclick="pullNavPo()"><x-icon name="inbound" :size="16" /> Tarik dari PO NAV</button>
-                <a href="{{ route('nav-po.index') }}" class="hint mt-2 block underline">Buka daftar PO NAV</a>
-            @endif
-        </div>
-
-        <div class="card card-pad">
-            <h2 class="mb-3 text-sm font-extrabold text-slate-900">Aksi</h2>
-            <div class="flex flex-col gap-2">
-                <button class="btn btn-primary" type="submit"><x-icon name="check" :size="16" /> Simpan Penerimaan</button>
-                <a href="{{ route('inbound.index') }}" class="btn btn-ghost">Batal</a>
-            </div>
-        </div>
-        <div class="card card-pad bg-slate-50">
-            <p class="text-xs font-bold text-slate-600">Alur</p>
-            <ol class="hint mt-2 list-inside list-decimal space-y-1">
-                <li>Simpan dokumen (draft)</li>
-                <li>Terima barang → serial QR per unit + stok masuk BIN staging</li>
-                <li>Putaway ke BIN tujuan</li>
-                <li>Cetak label (berat &amp; BIN per unit)</li>
-            </ol>
+    {{-- Aksi: bar bawah lebar penuh agar tombol simpan mudah dijangkau --}}
+    <div class="card card-pad flex flex-wrap items-center justify-between gap-3">
+        <p class="hint">Periksa kembali <b>Qty NAV</b>, berat &amp; BIN sebelum menyimpan. Serial QR dibuat otomatis saat barang diterima.</p>
+        <div class="flex gap-2">
+            <a href="{{ route('inbound.index') }}" class="btn btn-ghost">Batal</a>
+            <button class="btn btn-primary" type="submit"><x-icon name="check" :size="16" /> Simpan Penerimaan</button>
         </div>
     </div>
 </form>
@@ -325,8 +329,8 @@
             return;
         }
 
-        let html = '<p class="label">Berat &amp; BIN per Unit (opsional)</p>'
-            + '<p class="hint mb-2">Kosongkan kolom unit untuk memakai berat &amp; BIN di atas.</p>';
+        let html = '<p class="label">Rincian Unit / Serial QR (Berat &amp; BIN per unit dus/koli)</p>'
+            + '<p class="hint mb-2">Setiap unit di bawah menjadi 1 nomor serial + 1 label QR saat barang diterima. Kosongkan kolom unit untuk memakai berat &amp; BIN di atas.</p>';
 
         document.querySelectorAll('#itemBody .item-row').forEach(row => {
             const name = row.querySelector('[name^="items["]')?.name || '';
@@ -341,7 +345,7 @@
                 return;
             }
 
-            html += `<p class="label mt-3">${label || 'Baris'} · ${qty} unit</p><div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">`;
+            html += `<p class="label mt-3">${label || 'Baris'} · ${qty} unit (serial QR)</p><div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">`;
 
             for (let u = 0; u < qty; u++) {
                 const o = (idx === '0' && oldUnits[u]) ? oldUnits[u] : {};
