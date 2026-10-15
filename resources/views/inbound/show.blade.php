@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Detail Penerimaan '.$gr->doc_number)
+@section('title', 'Dokumen Penerimaan Barang — '.$gr->doc_number)
 @section('subtitle', $gr->supplier?->name.' · '.$gr->warehouse?->code.' · '.ucfirst($gr->status))
 
 @section('content')
@@ -13,7 +13,7 @@
     </div>
 
     <div class="flex gap-2">
-        <a href="{{ route('inbound.print', $gr) }}" class="btn btn-ghost"><x-icon name="printer" :size="16" /> Cetak Label</a>
+        <a href="{{ route('inbound.print', $gr) }}" class="btn btn-ghost"><x-icon name="printer" :size="16" /> Cetak Seluruh Label QR</a>
         <a href="{{ route('inbound.index') }}" class="btn btn-ghost">Kembali</a>
         @if ($canReceive)
             <form method="POST" action="{{ route('inbound.receive', $gr) }}">
@@ -32,14 +32,14 @@
             <p class="text-2xl font-extrabold text-indigo-700">{{ number_format($gr->items->sum('total_pcs')) }} <span class="text-xs text-slate-400">PCS</span></p>
         </div>
         <dl class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">No. Dokumen</dt><dd class="font-mono font-bold text-slate-800">{{ $gr->doc_number }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">No. PO</dt><dd class="font-mono font-bold">{{ $gr->po_no ?: '-' }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">Supplier</dt><dd class="text-right font-semibold">{{ $gr->supplier?->name }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">BIN Staging</dt><dd class="font-mono font-bold">{{ $gr->location?->code ?: '-' }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">Diterima</dt><dd class="font-semibold">{{ $gr->received_at?->format('d/m/Y H:i') ?: '-' }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">Oleh</dt><dd class="font-semibold">{{ $gr->user?->name ?: '-' }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">Ditempatkan</dt><dd class="font-semibold">{{ number_format($gr->items->sum('qty_placed')) }} PCS</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-slate-500">Catatan</dt><dd class="text-right text-slate-600">{{ $gr->notes ?: '-' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Nomor Dokumen</dt><dd class="font-mono font-bold text-slate-800">{{ $gr->doc_number }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Referensi PO NAV</dt><dd class="font-mono font-bold">{{ $gr->po_no ?: '-' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Pemasok / Vendor</dt><dd class="text-right font-semibold">{{ $gr->supplier?->name }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Lokasi Staging</dt><dd class="font-mono font-bold">{{ $gr->location?->code ?: '-' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Waktu Penerimaan</dt><dd class="font-semibold">{{ $gr->received_at?->format('d/m/Y H:i') ?: '-' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Petugas Penerima</dt><dd class="font-semibold">{{ $gr->user?->name ?: '-' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Total Diterima</dt><dd class="text-right font-semibold">{{ number_format($gr->items->sum('total_pcs')) }} PCS</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-500">Catatan Verifikasi</dt><dd class="text-right text-slate-600">{{ $gr->notes ?: '-' }}</dd></div>
         </dl>
     </div>
 
@@ -47,16 +47,16 @@
         <div class="card overflow-hidden">
             <div class="card-pad border-b border-slate-100">
                 <h2 class="text-sm font-extrabold text-slate-900">Item Penerimaan</h2>
-                <p class="hint">Barcode unik dibuat otomatis per baris (HF-RCV-...)</p>
+                <p class="hint">Daftar item kemasan dan konversi unit terkecil yang tercatat.</p>
                 @if ($navSummary->isNotEmpty())
                     <div class="mt-3 flex flex-wrap gap-2">
                         @foreach ($navSummary as $row)
                             @php $hasDiff = abs($row['diff']) > 0.001; @endphp
                             <span class="rounded-full px-3 py-1 text-xs font-bold {{ $hasDiff ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700' }}">
-                                {{ $hasDiff ? '⚠ ' : '✓ ' }}{{ $row['sku'] }}: NAV {{ rtrim(rtrim(number_format($row['nav'], 2, '.', ''), '0'), '.') }}
-                                · Fisik {{ rtrim(rtrim(number_format($row['physical'], 2, '.', ''), '0'), '.') }} PCS
                                 @if ($hasDiff)
-                                    · Selisih {{ $row['diff'] > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format($row['diff'], 2, '.', ''), '0'), '.') }}
+                                    ⚠ {{ $row['sku'] }}: Selisih Fisik ({{ $row['diff'] > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format($row['diff'], 2, '.', ''), '0'), '.') }} PCS vs PO NAV {{ rtrim(rtrim(number_format($row['nav'], 2, '.', ''), '0'), '.') }} PCS)
+                                @else
+                                    ✓ {{ $row['sku'] }}: Kuantitas Fisik Sesuai PO NAV ({{ rtrim(rtrim(number_format($row['nav'], 2, '.', ''), '0'), '.') }} PCS)
                                 @endif
                             </span>
                         @endforeach
@@ -101,19 +101,19 @@
                 <div class="card-pad border-b border-slate-100">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <h2 class="text-sm font-extrabold text-slate-900">Serial UOM ({{ $serials->count() }} unit)</h2>
-                            <p class="hint">QR Code label memakai kode_uom_serialno. Scan untuk melihat detail / picking.</p>
+                            <h2 class="text-sm font-extrabold text-slate-900">Identitas Serial Unit &amp; Barcode QR ({{ $serials->count() }} unit)</h2>
+                            <p class="hint">Satu kode QR unik dialokasikan untuk setiap unit fisik kemasan (dus/koli).</p>
                         </div>
                         <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
                             {{ $serials->where('qty_uom_out', '>', 0)->count() }} terpicking · {{ $serials->where('qty_uom_out', 0)->count() }} belum
                         </span>
                     </div>
                     <div class="mt-3 flex flex-wrap items-center gap-2">
-                        <span class="hint font-bold">Cetak QR per item:</span>
+                        <span class="hint font-bold">Cetak Label SKU:</span>
                         @foreach ($serials->groupBy('sku') as $sku => $group)
                             <a href="{{ route('inbound.print', ['inbound' => $gr, 'sku' => $sku]) }}" target="_blank"
                                class="btn btn-ghost btn-sm">
-                                <x-icon name="barcode" :size="14" /> {{ $sku }} ({{ $group->count() }})
+                                <x-icon name="barcode" :size="14" /> Cetak Label SKU — {{ $sku }} ({{ $group->count() }})
                             </a>
                         @endforeach
                     </div>
@@ -121,7 +121,7 @@
                 <div class="table-scroll w-full" style="max-height:32rem;overflow-y:auto">
                     <table class="table w-full min-w-[56rem]">
                         <thead>
-                            <tr><th class="min-w-[16rem]">Serial No</th><th>UoM</th><th class="text-right">PCS</th><th class="text-right">Berat (kg)</th><th>BIN</th><th>Status</th><th>SO / Pick</th><th class="w-28 text-right">Label QR</th></tr>
+                            <tr><th class="min-w-[16rem]">Serial No</th><th>UoM</th><th class="text-right">PCS</th><th class="text-right">Berat (kg)</th><th>BIN</th><th>Status</th><th>SO / Pick</th><th class="w-44 text-right">Cetak Label</th></tr>
                         </thead>
                         <tbody>
                         @foreach ($serials as $s)
@@ -141,8 +141,8 @@
                                 <td class="text-[11px] text-slate-600">{{ $s->so_no ?: '-' }}{{ $s->pick_no ? ' · '.$s->pick_no : '' }}</td>
                                 <td class="text-right">
                                     <a href="{{ route('inbound.print', ['inbound' => $gr, 'serial' => $s->kode_uom_serialno]) }}" target="_blank"
-                                       class="btn btn-ghost btn-sm" title="Cetak label QR unit ini">
-                                        <x-icon name="printer" :size="14" /> QR
+                                       class="btn btn-ghost btn-sm" title="Cetak Label Unit">
+                                        <x-icon name="printer" :size="14" /> Cetak Label Unit
                                     </a>
                                 </td>
                             </tr>

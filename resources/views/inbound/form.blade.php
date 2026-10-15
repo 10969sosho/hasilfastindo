@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Penerimaan Baru')
-@section('subtitle', 'Input konversi UOM, berat & BIN — serial QR dibuat otomatis per unit')
+@section('subtitle', 'Pencatatan barang masuk dari Purchase Order Dynamics NAV, alokasi kemasan UOM, berat & lokasi simpan.')
 
 @section('content')
 <form method="POST" action="{{ route('inbound.store') }}" class="w-full max-w-full space-y-5">
@@ -10,28 +10,28 @@
     {{-- Panel atas: Tarik PO NAV + Alur (dipindah dari sidebar kanan agar tabel item lebar penuh) --}}
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div class="card card-pad">
-            <h2 class="mb-3 text-sm font-extrabold text-slate-900">Tarik dari PO NAV</h2>
+            <h2 class="mb-3 text-sm font-extrabold text-slate-900">Integrasi Purchase Order (Dynamics NAV)</h2>
             @if ($navPos->isEmpty())
-                <p class="hint">Belum ada PO NAV menunggu diproses.</p>
+                <p class="hint">Belum ada Purchase Order NAV yang menunggu untuk diproses.</p>
             @else
-                <p class="hint mb-2">Pilih PO NAV lalu tarik datanya ke form ini.</p>
+                <p class="hint mb-2">Pilih dokumen PO aktif untuk memuat daftar item dan kuantitas acuan secara otomatis.</p>
                 <select class="input mb-2" id="navPoPick">
                     @foreach ($navPos as $p)
                         <option value="{{ $p->id }}" @selected($navPo?->id === $p->id)>{{ $p->po_no }} — {{ $p->supplier_name }}</option>
                     @endforeach
                 </select>
-                <button type="button" class="btn btn-dark w-full" onclick="pullNavPo()"><x-icon name="inbound" :size="16" /> Tarik dari PO NAV</button>
+                <button type="button" class="btn btn-dark w-full" onclick="pullNavPo()"><x-icon name="inbound" :size="16" /> Terapkan Data PO</button>
                 <a href="{{ route('nav-po.index') }}" class="hint mt-2 block underline">Buka daftar PO NAV</a>
             @endif
         </div>
 
         <div class="card card-pad bg-slate-50 md:col-span-2 xl:col-span-1">
-            <p class="text-xs font-bold text-slate-600">Alur</p>
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-600">Tahapan Operasional Inbound</p>
             <ol class="hint mt-2 list-inside list-decimal space-y-1 sm:columns-2 xl:columns-1">
-                <li>Simpan dokumen (draft)</li>
-                <li>Terima barang → serial QR per unit + stok masuk BIN staging</li>
-                <li>Putaway ke BIN tujuan</li>
-                <li>Cetak label (berat &amp; BIN per unit)</li>
+                <li>Verifikasi fisik &amp; kuantitas terhadap PO NAV.</li>
+                <li>Penetapan identitas UOM, berat, dan staging BIN.</li>
+                <li>Konfirmasi penerimaan &amp; generate QR serial unit.</li>
+                <li>Cetak label identitas &amp; proses putaway ke rak tujuan.</li>
             </ol>
         </div>
     </div>
@@ -114,42 +114,48 @@
 
             <div class="mb-4 grid gap-4 rounded-lg bg-slate-50 p-3 sm:grid-cols-2">
                 <div>
-                    <span class="label">Cara Input Konversi UOM</span>
-                    <div class="flex flex-col gap-1.5 pt-1 text-sm font-semibold text-slate-700">
-                        <label class="flex items-center gap-2">
-                            <input type="radio" name="conversion_mode" value="total" @checked(old('conversion_mode', 'total') === 'total')>
-                            Input Total Qty Terkecil
+                    <span class="label">METODE PERHITUNGAN UOM</span>
+                    <div class="flex flex-col gap-2 pt-1 text-sm font-semibold text-slate-700">
+                        <label class="flex items-start gap-2">
+                            <input type="radio" class="mt-0.5" name="conversion_mode" value="total" @checked(old('conversion_mode', 'total') === 'total')>
+                            <span>
+                                Berdasarkan Total Qty Terkecil (PCS)
+                                <span class="hint block font-normal">Input total unit fisik diterima, sistem mengalokasikan rata per kemasan</span>
+                            </span>
                         </label>
-                        <label class="flex items-center gap-2">
-                            <input type="radio" name="conversion_mode" value="per_uom" @checked(old('conversion_mode') === 'per_uom')>
-                            Input Isi Per Satuan UOM
+                        <label class="flex items-start gap-2">
+                            <input type="radio" class="mt-0.5" name="conversion_mode" value="per_uom" @checked(old('conversion_mode') === 'per_uom')>
+                            <span>
+                                Berdasarkan Kapasitas per Kemasan (PCS/UOM)
+                                <span class="hint block font-normal">Input isi standar per unit kemasan untuk kalkulasi total fisik</span>
+                            </span>
                         </label>
                     </div>
-                    <p class="hint mt-1">Total Qty Terkecil: isi <b>Total PCS</b> → dibagi rata ke Qty UOM. Isi Per Satuan: isi <b>Isi PCS/UOM</b> → total = Qty × Isi (dibandingkan ke Qty NAV).</p>
                 </div>
                 <div>
-                    <span class="label">Berat &amp; BIN / Rak</span>
+                    <span class="label">STANDARISASI BERAT &amp; LOKASI PENYIMPANAN</span>
                     <div class="flex flex-col gap-1.5 pt-1 text-sm font-semibold text-slate-700">
                         <label class="flex items-center gap-2">
                             <input type="radio" name="weight_bin_mode" value="same" @checked(old('weight_bin_mode', 'same') === 'same')>
-                            Terapkan Berat &amp; BIN sama ke semua unit
+                            Seragam untuk Seluruh Kemasan
                         </label>
                         <label class="flex items-center gap-2">
                             <input type="radio" name="weight_bin_mode" value="per_unit" @checked(old('weight_bin_mode') === 'per_unit')>
-                            Bisa beda per unit dus/koli
+                            Spesifik per Unit Kemasan (Koli/Dus)
                         </label>
                     </div>
                     <div class="mt-2 grid grid-cols-2 gap-2">
                         <div>
                             <label class="hint">Berat per unit (kg)</label>
-                            <input class="input" type="number" step="0.001" min="0" name="weight" value="{{ old('weight') }}" placeholder="12.5">
+                            <input class="input" type="number" step="0.001" min="0" name="weight" value="{{ old('weight') }}" placeholder="Contoh: 12.50">
                         </div>
                         <div>
-                            <label class="hint">BIN / Rak</label>
-                            <input class="input" name="bin_no" value="{{ old('bin_no') }}" placeholder="A-03-02">
+                            <label class="hint">Kode BIN / Rak</label>
+                            <input class="input" name="bin_no" value="{{ old('bin_no') }}" placeholder="Contoh: A-03-02">
                         </div>
                     </div>
-                    <p class="hint mt-1" id="weightHint">Berat &amp; BIN diterapkan sama ke semua unit.</p>
+                    <p class="hint mt-1">Data berat dan kode rak akan dicetak pada label QR identitas barang.</p>
+                    <p class="hint" id="weightHint">Berat &amp; BIN diterapkan seragam ke seluruh kemasan.</p>
                 </div>
             </div>
 
@@ -158,7 +164,7 @@
             <div class="table-scroll w-full">
                 <table class="table w-full min-w-[72rem]">
                     <thead>
-                        <tr><th class="min-w-[16rem]">Item</th><th class="min-w-[8rem]">Batch No</th><th class="min-w-[7rem]">Satuan</th><th class="w-28">Qty UOM</th><th class="w-32">Total PCS</th><th class="w-32">Isi PCS/UOM</th><th class="w-32">Qty NAV (PCS)</th><th class="min-w-[9rem]">Berat (kg)</th><th class="min-w-[9rem]">BIN Tujuan</th><th class="w-14"></th></tr>
+                        <tr><th class="min-w-[16rem]">Item</th><th class="min-w-[8rem]">Batch No</th><th class="min-w-[7rem]">Satuan</th><th class="w-28">Qty Kemasan</th><th class="w-32">Total Fisik (PCS)</th><th class="w-32">Kapasitas (PCS/UOM)</th><th class="w-32">Qty PO NAV (PCS)</th><th class="min-w-[9rem]">Berat / Unit (kg)</th><th class="min-w-[9rem]">Kode BIN / Rak</th><th class="w-14"></th></tr>
                     </thead>
                     <tbody id="itemBody">
                         @php
@@ -188,10 +194,10 @@
                             <td><input class="input total-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][total_pcs]" value="{{ old("items.$idx.total_pcs", $row['total_pcs']) }}" placeholder="90000"></td>
                             <td><input class="input per-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][pcs_per_uom]" value="{{ old("items.$idx.pcs_per_uom") }}" placeholder="10000"></td>
                             <td><input class="input nav-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][nav_qty]" value="{{ old("items.$idx.nav_qty", $row['nav_qty']) }}" placeholder="Opsional" disabled></td>
-                            <td><input class="input weight-row text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][weight]" value="{{ old("items.$idx.weight") }}" placeholder="ikut atas"></td>
+                            <td><input class="input weight-row text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][weight]" value="{{ old("items.$idx.weight") }}" placeholder="Mengikuti Standar"></td>
                             <td>
                                 <select class="input" name="items[{{ $idx }}][target_bin_id]">
-                                    <option value="">- Ikut BIN staging -</option>
+                                    <option value="">Sesuai Form Atas</option>
                                     @foreach ($bins as $b)<option value="{{ $b->id }}" @selected(old("items.$idx.target_bin_id") == $b->id)>{{ $b->code }}</option>@endforeach
                                 </select>
                             </td>
@@ -303,13 +309,13 @@
 
         box.innerHTML = [...map.values()].map(e => {
             if (!e.hasNav) {
-                return `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">${e.label}: Qty NAV belum diisi</span>`;
+                return `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">${e.label}: Qty PO NAV belum diisi</span>`;
             }
             const diff = e.physical - e.nav;
             const match = Math.abs(diff) < 0.001;
             return match
-                ? `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">${e.label}: NAV ${fmt(e.nav)} = Fisik ${fmt(e.physical)} PCS</span>`
-                : `<span class="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">⚠ ${e.label}: NAV ${fmt(e.nav)} vs Fisik ${fmt(e.physical)} PCS (selisih ${diff > 0 ? '+' : ''}${fmt(diff)})</span>`;
+                ? `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">✓ ${e.label}: Kuantitas Fisik Sesuai PO NAV (${fmt(e.nav)} PCS)</span>`
+                : `<span class="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">⚠ ${e.label}: Selisih Fisik (${diff > 0 ? '+' : ''}${fmt(diff)} PCS vs PO NAV ${fmt(e.nav)} PCS)</span>`;
         }).join('');
     }
 
@@ -320,8 +326,8 @@
         if (!box) return;
 
         if (hint) hint.textContent = perUnit()
-            ? 'Berat & BIN di atas menjadi nilai default bila kolom unit dibiarkan kosong.'
-            : 'Berat & BIN diterapkan sama ke semua unit.';
+            ? 'Berat & BIN di atas menjadi nilai default bila kolom per unit dibiarkan kosong.'
+            : 'Berat & BIN diterapkan seragam ke seluruh kemasan.';
 
         if (!perUnit()) {
             box.classList.add('hidden');
@@ -329,8 +335,8 @@
             return;
         }
 
-        let html = '<p class="label">Rincian Unit / Serial QR (Berat &amp; BIN per unit dus/koli)</p>'
-            + '<p class="hint mb-2">Setiap unit di bawah menjadi 1 nomor serial + 1 label QR saat barang diterima. Kosongkan kolom unit untuk memakai berat &amp; BIN di atas.</p>';
+        let html = '<p class="label">Rincian Berat &amp; BIN per Unit Kemasan (Koli/Dus)</p>'
+            + '<p class="hint mb-2">Setiap unit di bawah menjadi 1 nomor serial + 1 label QR saat barang diterima. Kosongkan kolom unit untuk memakai standar di atas.</p>';
 
         document.querySelectorAll('#itemBody .item-row').forEach(row => {
             const name = row.querySelector('[name^="items["]')?.name || '';
@@ -341,7 +347,7 @@
             if (idx === undefined || isNaN(qty) || qty < 1) return;
 
             if (qty > 30) {
-                html += `<p class="hint rounded-lg bg-amber-50 px-3 py-2">${label || 'Baris'}: ${qty} unit — input per unit dinonaktifkan (&gt;30), pakai berat &amp; BIN sama.</p>`;
+                html += `<p class="hint rounded-lg bg-amber-50 px-3 py-2">${label || 'Baris'}: ${qty} unit — input per unit dinonaktifkan (batas 30 unit), gunakan standar berat &amp; BIN di atas.</p>`;
                 return;
             }
 

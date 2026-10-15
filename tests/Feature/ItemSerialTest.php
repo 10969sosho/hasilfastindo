@@ -222,7 +222,7 @@ class ItemSerialTest extends TestCase
 
         $this->actingAs($this->user)->get(route('inbound.show', $gr))
             ->assertOk()
-            ->assertSee('Serial UOM', false);
+            ->assertSee('Identitas Serial Unit', false);
 
         $this->actingAs($this->user)->get(route('mobile.index'))
             ->assertOk()

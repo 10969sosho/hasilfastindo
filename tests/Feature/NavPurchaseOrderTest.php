@@ -80,7 +80,7 @@ class NavPurchaseOrderTest extends TestCase
             ->assertSee('Daftar PO NAV', false)
             ->assertSee($po->po_no, false)
             ->assertSee($po->supplier_name, false)
-            ->assertSee('Proses Penerimaan', false);
+            ->assertSee('Proses ke Inbound', false);
 
         $this->actingAs($this->user)->get(route('nav-po.show', $po))
             ->assertOk()
@@ -97,7 +97,7 @@ class NavPurchaseOrderTest extends TestCase
     {
         $po = $this->makeNavPo();
 
-        // Tombol "Proses Penerimaan" mengarah ke form penerimaan dengan param nav_po_id.
+        // Tombol "Proses ke Inbound" mengarah ke form penerimaan dengan param nav_po_id.
         $list = $this->actingAs($this->user)->get(route('nav-po.index'))->assertOk();
         $this->assertStringContainsString(
             'inbound/create?nav_po_id='.$po->id,
@@ -117,7 +117,7 @@ class NavPurchaseOrderTest extends TestCase
         // Form biasa (tanpa parameter) tetap menawarkan pemilihan PO NAV.
         $this->actingAs($this->user)->get(route('inbound.create'))
             ->assertOk()
-            ->assertSee('Tarik dari PO NAV', false)
+            ->assertSee('Integrasi Purchase Order (Dynamics NAV)', false)
             ->assertSee($po->po_no, false);
 
         // Alternatif: prefill juga bisa dipanggil lewat ?po_no=.

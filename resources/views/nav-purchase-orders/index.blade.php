@@ -1,25 +1,33 @@
 @extends('layouts.app')
 
 @section('title', 'Daftar PO NAV')
-@section('subtitle', 'Purchase Order dari NAV/BC — data staging mandiri, diproses ke Penerimaan Barang')
+@section('subtitle', 'Sinkronisasi dokumen Purchase Order dari ERP Microsoft Dynamics NAV.')
 
 @section('content')
 <div class="card card-pad mb-5 flex flex-wrap items-end justify-between gap-3">
     <form method="GET" action="{{ route('nav-po.index') }}" class="flex flex-wrap items-end gap-3">
-        <div class="min-w-[14rem]">
+        <div class="min-w-[16rem]">
             <label class="label">Cari</label>
-            <input class="input" name="q" value="{{ request('q') }}" placeholder="No. PO / Supplier">
+            <input class="input" name="q" value="{{ request('q') }}" placeholder="Cari nomor PO atau nama pemasok...">
         </div>
-        <div class="min-w-[11rem]">
+        <div class="min-w-[13rem]">
             <label class="label">Status</label>
             <select class="input" name="status">
-                <option value="">Semua</option>
-                @foreach (['open', 'released', 'partially_received', 'completed'] as $s)
-                    <option value="{{ $s }}" @selected(request('status') === $s)>{{ ucwords(str_replace('_', ' ', $s)) }}</option>
+                <option value="">Semua Status</option>
+                @php
+                    $statusLabels = [
+                        'open' => 'Menunggu Penerimaan',
+                        'released' => 'Menunggu Penerimaan',
+                        'partially_received' => 'Diterima Sebagian',
+                        'completed' => 'Selesai',
+                    ];
+                @endphp
+                @foreach ($statusLabels as $value => $text)
+                    <option value="{{ $value }}" @selected(request('status') === $value)>{{ $text }}</option>
                 @endforeach
             </select>
         </div>
-        <button class="btn btn-ghost">Filter</button>
+        <button class="btn btn-ghost">Terapkan Filter</button>
     </form>
 
     <a href="{{ route('inbound.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> Penerimaan Baru</a>
@@ -47,12 +55,12 @@
                         <p class="font-bold text-slate-700">{{ $po->items_count }} item · {{ number_format($po->items_sum_nav_qty_pcs ?? 0) }} PCS</p>
                         <p class="max-w-[22rem] truncate text-[11px] text-slate-400">{{ $po->items->take(3)->pluck('sku')->join(', ') }}{{ $extraItems > 0 ? ', +'.$extraItems : '' }}</p>
                     </td>
-                    <td><x-badge :status="$po->status" /></td>
+                    <td><x-badge :status="$po->status" :label="$statusLabels[$po->status] ?? null" /></td>
                     <td>
                         <div class="flex justify-end gap-1.5">
                             <a href="{{ route('nav-po.show', $po) }}" class="btn btn-ghost btn-sm" title="Detail item"><x-icon name="eye" :size="14" /></a>
                             @if ($po->isReceivable())
-                                <a href="{{ route('inbound.create', ['nav_po_id' => $po->id]) }}" class="btn btn-success btn-sm">Proses Penerimaan</a>
+                                <a href="{{ route('inbound.create', ['nav_po_id' => $po->id]) }}" class="btn btn-success btn-sm">Proses ke Inbound</a>
                             @else
                                 <span class="btn btn-ghost btn-sm opacity-60" title="PO sudah lengkap diterima">Selesai</span>
                             @endif
@@ -60,7 +68,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="py-8 text-center text-slate-400">Belum ada PO NAV.</td></tr>
+                <tr><td colspan="6" class="py-8 text-center text-slate-400">Belum ada dokumen Purchase Order NAV.</td></tr>
             @endforelse
             </tbody>
         </table>

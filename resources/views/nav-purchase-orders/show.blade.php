@@ -4,6 +4,14 @@
 @section('subtitle', $po->po_no.' · '.$po->supplier_name)
 
 @section('content')
+@php
+    $poStatusLabels = [
+        'open' => 'Menunggu Penerimaan',
+        'released' => 'Menunggu Penerimaan',
+        'partially_received' => 'Diterima Sebagian',
+        'completed' => 'Selesai',
+    ];
+@endphp
 <div class="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     <div class="kpi">
         <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Tanggal</p>
@@ -19,7 +27,7 @@
     </div>
     <div class="kpi">
         <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Status</p>
-        <p class="mt-1"><x-badge :status="$po->status" /></p>
+        <p class="mt-1"><x-badge :status="$po->status" :label="$poStatusLabels[$po->status] ?? null" /></p>
     </div>
 </div>
 
@@ -33,7 +41,7 @@
     <div class="flex gap-2">
         <a href="{{ route('nav-po.index') }}" class="btn btn-ghost">Kembali</a>
         @if ($po->isReceivable())
-            <a href="{{ route('inbound.create', ['nav_po_id' => $po->id]) }}" class="btn btn-success"><x-icon name="inbound" :size="16" /> Proses Penerimaan</a>
+            <a href="{{ route('inbound.create', ['nav_po_id' => $po->id]) }}" class="btn btn-success"><x-icon name="inbound" :size="16" /> Proses ke Inbound</a>
         @endif
     </div>
 </div>
