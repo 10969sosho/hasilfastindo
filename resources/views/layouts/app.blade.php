@@ -64,6 +64,7 @@
         ['type' => 'section', 'label' => 'Operasional'],
         ['type' => 'link', 'label' => 'Dashboard', 'icon' => 'dashboard', 'match' => 'dashboard', 'route' => 'dashboard'],
         ['type' => 'link', 'label' => 'Penerimaan Barang', 'icon' => 'inbound', 'match' => 'inbound.', 'route' => 'inbound.index'],
+        ['type' => 'link', 'label' => 'Daftar PO NAV', 'icon' => 'boxes', 'match' => 'nav-po.', 'route' => 'nav-po.index'],
         ['type' => 'link', 'label' => 'Pengeluaran (SO)', 'icon' => 'outbound', 'match' => 'outbound.', 'route' => 'outbound.index'],
         ['type' => 'link', 'label' => 'Radar Summary SO', 'icon' => 'radar', 'match' => 'summary.', 'route' => 'summary.index'],
         ['type' => 'link', 'label' => 'Picking & Packing', 'icon' => 'clipboard', 'match' => 'packing.', 'route' => 'packing.index'],

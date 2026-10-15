@@ -8,6 +8,7 @@ use App\Http\Controllers\InboundController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\MobileWarehouseController;
 use App\Http\Controllers\MonitoringPusatController;
+use App\Http\Controllers\NavPurchaseOrderController;
 use App\Http\Controllers\OutboundController;
 use App\Http\Controllers\PackingController;
 use App\Http\Controllers\PartnerController;
@@ -93,6 +94,10 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::post('/inbound/{inbound}/receive', [InboundController::class, 'receive'])->name('inbound.receive');
     Route::post('/inbound/{inbound}/putaway', [InboundController::class, 'putaway'])->name('inbound.putaway');
     Route::get('/inbound/{inbound}/print-labels', [InboundController::class, 'printLabels'])->name('inbound.print');
+
+    /* ------------------------------------------ Staging: PO dari NAV/BC */
+    Route::get('/nav-purchase-orders', [NavPurchaseOrderController::class, 'index'])->name('nav-po.index');
+    Route::get('/nav-purchase-orders/{purchaseOrder}', [NavPurchaseOrderController::class, 'show'])->name('nav-po.show');
 
     /* -------------------------------------------------- Outbound (SO/GI) */
     Route::get('/outbound', [OutboundController::class, 'index'])->name('outbound.index');

@@ -9,11 +9,13 @@ use App\Models\Item;
 use App\Models\ItemSerial;
 use App\Models\ItemUomConversion;
 use App\Models\Location;
+use App\Models\NavPurchaseOrder;
 use App\Models\Stock;
 use App\Models\Supplier;
 use App\Models\Uom;
 use App\Models\Warehouse;
 use App\Services\StockService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -278,6 +280,9 @@ class InboundController extends Controller
             // 1 record serial = 1 unit UOM fisik, sequence per penerimaan + SKU + UOM.
             ItemSerial::generateForReceipt($inbound);
 
+            // Perbarui progres PO NAV bila penerimaan ini ditarik dari PO tersebut.
+            $this->syncNavPoProgress($inbound);
+
             $request->session()->flash('toast', 'Barang diterima, siap dilakukan putaway ke BIN.');
         });
 
@@ -475,6 +480,7 @@ class InboundController extends Controller
         $warehouses = Warehouse::with('branch')->when(! $this->canSeeAllBranches(), fn ($q) => $q->where('branch_id', $branchId))->orderBy('code')->get();
         $warehouseId = $request->integer('warehouse_id') ?: $warehouses->first()?->id;
         $items = Item::where('is_active', true)->orderBy('name')->get(['id', 'sku', 'name', 'base_uom_id']);
+        $uoms = Uom::orderBy('code')->get();
 
         $conversions = ItemUomConversion::whereIn('item_id', $items->pluck('id'))->get()
             ->groupBy('item_id')
@@ -485,16 +491,129 @@ class InboundController extends Controller
             'conversions' => $conversions[$i->id] ?? collect(),
         ]]);
 
+        [$navPo, $navRows, $navMissingSkus] = $this->navPrefill($request, $items, $uoms);
+
         return [
             'warehouses' => $warehouses,
             'bins' => $this->locationsOf($warehouseId),
             'suppliers' => Supplier::orderBy('name')->get(),
             'items' => $items,
             'itemMeta' => $itemMeta,
-            'uoms' => Uom::orderBy('code')->get(),
+            'uoms' => $uoms,
             'defaultWarehouseId' => $warehouseId,
             'defaultBinId' => $request->integer('location_id'),
+            'navPo' => $navPo,
+            'navRows' => $navRows,
+            'navMissingSkus' => $navMissingSkus,
+            'navSupplierId' => $navPo ? Supplier::where('name', $navPo->supplier_name)->value('id') : null,
+            'navPos' => NavPurchaseOrder::whereIn('status', [
+                NavPurchaseOrder::STATUS_OPEN,
+                NavPurchaseOrder::STATUS_RELEASED,
+                NavPurchaseOrder::STATUS_PARTIAL,
+            ])->orderByDesc('order_date')->get(['id', 'po_no', 'supplier_name', 'status']),
         ];
+    }
+
+    /**
+     * Baris item hasil prefill dari PO NAV (?nav_po_id= atau ?po_no=).
+     *
+     * @param  Collection<int, Item>  $items
+     * @param  Collection<int, Uom>  $uoms
+     * @return array{0: ?NavPurchaseOrder, 1: array<int, array{item_id: int, uom_id: int|null, received_qty: float, total_pcs: float, nav_qty: float}>, 2: array<int, string>}
+     */
+    private function navPrefill(Request $request, $items, $uoms): array
+    {
+        if (! $request->filled('nav_po_id') && ! $request->filled('po_no')) {
+            return [null, [], []];
+        }
+
+        $navPo = NavPurchaseOrder::with('items')
+            ->when($request->filled('nav_po_id'), fn ($q) => $q->whereKey($request->integer('nav_po_id')))
+            ->when(! $request->filled('nav_po_id'), fn ($q) => $q->where('po_no', (string) $request->string('po_no')))
+            ->first();
+
+        if (! $navPo) {
+            return [null, [], []];
+        }
+
+        $itemsBySku = $items->keyBy('sku');
+        $uomsByCode = $uoms->keyBy('code');
+        $fmt = fn (float $value) => rtrim(rtrim(number_format($value, 3, '.', ''), '0'), '.');
+
+        $rows = [];
+        $missing = [];
+
+        foreach ($navPo->items as $line) {
+            $item = $itemsBySku->get($line->sku);
+
+            if (! $item) {
+                $missing[] = $line->sku;
+
+                continue;
+            }
+
+            $uom = $uomsByCode->get(strtoupper($line->uom_nav)) ?: Uom::find($item->base_uom_id);
+            $multiplier = $uom ? ($this->conversionMultiplier((int) $item->id, (int) $uom->id, (int) $item->base_uom_id) ?? 1) : 1;
+            $nav = (float) $line->nav_qty_pcs;
+
+            $rows[] = [
+                'item_id' => (int) $item->id,
+                'uom_id' => $uom ? (int) $uom->id : null,
+                'received_qty' => (float) ($multiplier > 0 ? $fmt($nav / $multiplier) : $nav),
+                'total_pcs' => $nav,
+                'nav_qty' => $nav,
+            ];
+        }
+
+        return [$navPo, $rows, $missing];
+    }
+
+    /**
+     * Sinkronkan progres penerimaan ke PO NAV berdasarkan No. PO yang tercatat di GR.
+     */
+    private function syncNavPoProgress(GoodsReceipt $gr): void
+    {
+        if (! $gr->po_no) {
+            return;
+        }
+
+        $po = NavPurchaseOrder::with('items')->where('po_no', $gr->po_no)->first();
+
+        if (! $po || $po->items->isEmpty()) {
+            return;
+        }
+
+        $receivedBySku = GoodsReceiptItem::query()
+            ->whereHas('goodsReceipt', fn ($q) => $q->where('po_no', $po->po_no))
+            ->join('items', 'items.id', '=', 'goods_receipt_items.item_id')
+            ->selectRaw('items.sku as sku, SUM(goods_receipt_items.total_pcs) as qty')
+            ->groupBy('items.sku')
+            ->pluck('qty', 'sku');
+
+        $allCompleted = true;
+        $anyReceived = false;
+
+        foreach ($po->items as $line) {
+            $received = (float) ($receivedBySku[$line->sku] ?? 0);
+            $anyReceived = $anyReceived || $received > 0;
+
+            if ($received + 0.001 < (float) $line->nav_qty_pcs) {
+                $allCompleted = false;
+            }
+
+            $line->update([
+                'received_qty_pcs' => $received,
+                'status' => $received <= 0
+                    ? 'open'
+                    : ($received + 0.001 >= (float) $line->nav_qty_pcs ? 'completed' : 'partially_received'),
+            ]);
+        }
+
+        if ($allCompleted) {
+            $po->update(['status' => NavPurchaseOrder::STATUS_COMPLETED]);
+        } elseif ($anyReceived) {
+            $po->update(['status' => NavPurchaseOrder::STATUS_PARTIAL]);
+        }
     }
 
     private function resolveBatch(GoodsReceiptItem $line): ?Batch

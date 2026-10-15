@@ -8,6 +8,24 @@
     @csrf
 
     <div class="space-y-5 lg:col-span-2">
+        @if ($navPo)
+            <div class="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
+                <x-icon name="inbound" :size="16" />
+                <span>Form ditarik dari PO NAV <span class="font-mono font-bold">{{ $navPo->po_no }}</span> · {{ $navPo->supplier_name }} — Qty NAV (PCS) terisi otomatis.</span>
+                <a href="{{ route('nav-po.show', $navPo) }}" class="ml-auto text-xs font-bold underline">Lihat detail PO</a>
+            </div>
+            @if (! $navSupplierId)
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                    Supplier <b>{{ $navPo->supplier_name }}</b> belum ada di Master Supplier — pilih supplier manual sebelum menyimpan.
+                </div>
+            @endif
+            @if ($navMissingSkus)
+                <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                    SKU NAV belum terdaftar di Master Item: <span class="font-mono">{{ implode(', ', $navMissingSkus) }}</span>
+                </div>
+            @endif
+        @endif
+
         <div class="card card-pad">
             <h2 class="mb-4 text-sm font-extrabold text-slate-900">Dokumen Penerimaan</h2>
             <div class="grid gap-4 sm:grid-cols-2">
@@ -16,13 +34,13 @@
                     <select class="input" name="supplier_id" required>
                         <option value="">- Pilih supplier -</option>
                         @foreach ($suppliers as $s)
-                            <option value="{{ $s->id }}" @selected(old('supplier_id') == $s->id)>{{ $s->code }} — {{ $s->name }}</option>
+                            <option value="{{ $s->id }}" @selected(old('supplier_id', $navSupplierId) == $s->id)>{{ $s->code }} — {{ $s->name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
                     <label class="label">No. PO (NAV)</label>
-                    <input class="input font-mono" name="po_no" value="{{ old('po_no') }}" placeholder="PO-2026-0001">
+                    <input class="input font-mono" name="po_no" value="{{ old('po_no', $navPo?->po_no) }}" placeholder="PO-2026-0001">
                 </div>
                 <div>
                     <label class="label">Source SO (opsional)</label>
@@ -30,7 +48,7 @@
                 </div>
                 <div>
                     <label class="label required">Gudang Tujuan</label>
-                    <select class="input" name="warehouse_id" id="warehouse_id" onchange="location.href='{{ route('inbound.create') }}?warehouse_id='+this.value" required>
+                    <select class="input" name="warehouse_id" id="warehouse_id" onchange="location.href='{{ route('inbound.create') }}?warehouse_id='+this.value+'&nav_po_id={{ $navPo?->id }}'" required>
                         @foreach ($warehouses as $w)
                             <option value="{{ $w->id }}" @selected($defaultWarehouseId == $w->id)>{{ $w->code }} — {{ $w->name }}</option>
                         @endforeach
@@ -114,33 +132,42 @@
                         <tr><th class="min-w-[13rem]">Item</th><th>Batch No</th><th>Satuan</th><th class="w-28">Qty UOM</th><th class="w-32">Total PCS</th><th class="w-32">Isi PCS/UOM</th><th class="w-28">Qty NAV (PCS)</th><th>BIN Tujuan</th><th></th></tr>
                     </thead>
                     <tbody id="itemBody">
+                        @php
+                            $oldRows = old('items');
+                            $rowCount = max(count($navRows), is_array($oldRows) ? count($oldRows) : 0, 1);
+                        @endphp
+                        @for ($idx = 0; $idx < $rowCount; $idx++)
+                            @php
+                                $row = $navRows[$idx] ?? ['item_id' => null, 'uom_id' => null, 'received_qty' => 1, 'total_pcs' => null, 'nav_qty' => null];
+                            @endphp
                         <tr class="item-row">
                             <td>
-                                <select class="input item-select" name="items[0][item_id]" required>
+                                <select class="input item-select" name="items[{{ $idx }}][item_id]" required>
                                     <option value="">- Pilih item -</option>
                                     @foreach ($items as $i)
-                                        <option value="{{ $i->id }}" @selected(old('items.0.item_id') == $i->id) data-meta="{{ json_encode($itemMeta[$i->id] ?? null) }}">{{ $i->sku }} — {{ $i->name }}</option>
+                                        <option value="{{ $i->id }}" @selected(old("items.$idx.item_id", $row['item_id']) == $i->id) data-meta="{{ json_encode($itemMeta[$i->id] ?? null) }}">{{ $i->sku }} — {{ $i->name }}</option>
                                     @endforeach
                                 </select>
                             </td>
-                            <td><input class="input font-mono" name="items[0][batch_no]" value="{{ old('items.0.batch_no') }}" placeholder="B-2026A"></td>
+                            <td><input class="input font-mono" name="items[{{ $idx }}][batch_no]" value="{{ old("items.$idx.batch_no") }}" placeholder="B-2026A"></td>
                             <td>
-                                <select class="input uom-select" name="items[0][received_uom_id]" required>
-                                    @foreach ($uoms as $u)<option value="{{ $u->id }}" @selected(old('items.0.received_uom_id') == $u->id) data-code="{{ $u->code }}">{{ $u->code }}</option>@endforeach
+                                <select class="input uom-select" name="items[{{ $idx }}][received_uom_id]" required>
+                                    @foreach ($uoms as $u)<option value="{{ $u->id }}" @selected(old("items.$idx.received_uom_id", $row['uom_id']) == $u->id) data-code="{{ $u->code }}">{{ $u->code }}</option>@endforeach
                                 </select>
                             </td>
-                            <td><input class="input qty-input" type="number" step="0.001" min="0" name="items[0][received_qty]" value="{{ old('items.0.received_qty', 1) }}" required></td>
-                            <td><input class="input total-input text-right" type="number" step="0.001" min="0" name="items[0][total_pcs]" value="{{ old('items.0.total_pcs') }}" placeholder="90000"></td>
-                            <td><input class="input per-input text-right" type="number" step="0.001" min="0" name="items[0][pcs_per_uom]" value="{{ old('items.0.pcs_per_uom') }}" placeholder="10000"></td>
-                            <td><input class="input nav-input text-right" type="number" step="0.001" min="0" name="items[0][nav_qty]" value="{{ old('items.0.nav_qty') }}" placeholder="Opsional" disabled></td>
+                            <td><input class="input qty-input" type="number" step="0.001" min="0" name="items[{{ $idx }}][received_qty]" value="{{ old("items.$idx.received_qty", $row['received_qty']) }}" required></td>
+                            <td><input class="input total-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][total_pcs]" value="{{ old("items.$idx.total_pcs", $row['total_pcs']) }}" placeholder="90000"></td>
+                            <td><input class="input per-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][pcs_per_uom]" value="{{ old("items.$idx.pcs_per_uom") }}" placeholder="10000"></td>
+                            <td><input class="input nav-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][nav_qty]" value="{{ old("items.$idx.nav_qty", $row['nav_qty']) }}" placeholder="Opsional" disabled></td>
                             <td>
-                                <select class="input" name="items[0][target_bin_id]">
+                                <select class="input" name="items[{{ $idx }}][target_bin_id]">
                                     <option value="">- Ikut BIN staging -</option>
-                                    @foreach ($bins as $b)<option value="{{ $b->id }}" @selected(old('items.0.target_bin_id') == $b->id)>{{ $b->code }}</option>@endforeach
+                                    @foreach ($bins as $b)<option value="{{ $b->id }}" @selected(old("items.$idx.target_bin_id") == $b->id)>{{ $b->code }}</option>@endforeach
                                 </select>
                             </td>
                             <td class="w-10"><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();syncNav();renderUnits();">✕</button></td>
                         </tr>
+                        @endfor
                     </tbody>
                 </table>
             </div>
@@ -150,6 +177,22 @@
     </div>
 
     <div class="space-y-4">
+        <div class="card card-pad">
+            <h2 class="mb-3 text-sm font-extrabold text-slate-900">Tarik dari PO NAV</h2>
+            @if ($navPos->isEmpty())
+                <p class="hint">Belum ada PO NAV menunggu diproses.</p>
+            @else
+                <p class="hint mb-2">Pilih PO NAV lalu tarik datanya ke form ini.</p>
+                <select class="input mb-2" id="navPoPick">
+                    @foreach ($navPos as $p)
+                        <option value="{{ $p->id }}" @selected($navPo?->id === $p->id)>{{ $p->po_no }} — {{ $p->supplier_name }}</option>
+                    @endforeach
+                </select>
+                <button type="button" class="btn btn-dark w-full" onclick="pullNavPo()"><x-icon name="inbound" :size="16" /> Tarik dari PO NAV</button>
+                <a href="{{ route('nav-po.index') }}" class="hint mt-2 block underline">Buka daftar PO NAV</a>
+            @endif
+        </div>
+
         <div class="card card-pad">
             <h2 class="mb-3 text-sm font-extrabold text-slate-900">Aksi</h2>
             <div class="flex flex-col gap-2">
@@ -172,8 +215,13 @@
 
 @push('scripts')
 <script>
-    let rowIndex = 1;
+    let rowIndex = document.querySelectorAll('#itemBody .item-row').length;
     const oldUnits = @json(collect(old('items.0.units', [])));
+
+    function pullNavPo() {
+        const id = document.getElementById('navPoPick')?.value;
+        if (id) location.href = "{{ route('inbound.create') }}?nav_po_id=" + id;
+    }
 
     const mode = () => document.querySelector('input[name=conversion_mode]:checked')?.value || 'total';
     const perUnit = () => document.querySelector('input[name=weight_bin_mode]:checked')?.value === 'per_unit';
@@ -334,9 +382,15 @@
         const html = document.querySelector('#itemBody .item-row').outerHTML
             .replace(/items\[\d+\]/g, () => `items[${rowIndex}]`);
         document.getElementById('itemBody').insertAdjacentHTML('beforeend', html);
+
+        // Baris baru selalu kosong — jangan menyalin nilai baris pertama (mis. hasil tarikan PO NAV).
+        const row = document.getElementById('itemBody').lastElementChild;
+        row.querySelectorAll('input').forEach(i => { i.value = ''; });
+        row.querySelectorAll('select').forEach(s => { s.selectedIndex = 0; });
+        row.querySelector('.qty-input').value = 1;
+
         rowIndex++;
-        syncNav();
-        renderUnits();
+        refreshRow(row);
     });
 
     document.querySelectorAll('.item-row').forEach(recalc);

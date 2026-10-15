@@ -5,10 +5,11 @@
         'available' => 'emerald', 'ready' => 'emerald', 'done' => 'emerald', 'delivered' => 'emerald',
         'in_transit' => 'amber', 'pending' => 'amber', 'draft' => 'amber', 'open' => 'amber',
         'pending_scan' => 'amber', 'in_progress' => 'amber', 'putaway' => 'amber', 'reserved' => 'amber',
-        'partial' => 'amber', 'arrived' => 'amber', 'pickup_sendiri' => 'amber',
+        'partial' => 'amber', 'arrived' => 'amber', 'pickup_sendiri' => 'amber', 'partially_received' => 'amber',
         'discrepancy' => 'rose', 'problem' => 'rose', 'cancelled' => 'rose', 'low' => 'rose',
         'processing' => 'indigo', 'packed' => 'indigo', 'loaded' => 'indigo', 'in_delivery' => 'indigo',
         'scanned_out' => 'indigo', 'received_pending' => 'indigo', 'confirmed' => 'indigo',
+        'released' => 'indigo',
         'draft_status' => 'slate',
     ];
     $tone = $map[$status] ?? 'slate';

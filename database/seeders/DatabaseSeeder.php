@@ -53,6 +53,7 @@ class DatabaseSeeder extends Seeder
         $this->seedPartners();
         $fleet = $this->seedFleet();
         $items = $this->seedItems($uom, $cats);
+        $this->call(NavPurchaseOrderSeeder::class);
         $stocks = $this->seedStocks($items, $branches, $locations, $uom);
         $users = $this->seedUsers($branches);
         $this->seedTransactions($items, $branches, $locations, $uom, $stocks, $users, $fleet);
@@ -64,6 +65,7 @@ class DatabaseSeeder extends Seeder
     private function resetTables(): void
     {
         $tables = [
+            'nav_purchase_order_items', 'nav_purchase_orders',
             'stock_opname_items', 'stock_opnames',
             'delivery_tracks', 'delivery_items', 'deliveries',
             'packing_list_items', 'packing_list_boxes', 'packing_lists',
