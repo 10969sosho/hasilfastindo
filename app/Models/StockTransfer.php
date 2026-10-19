@@ -57,4 +57,9 @@ class StockTransfer extends Model
     {
         return $this->hasMany(StockTransferItem::class);
     }
+
+    public function scans(): HasMany
+    {
+        return $this->hasMany(StockTransferScan::class);
+    }
 }

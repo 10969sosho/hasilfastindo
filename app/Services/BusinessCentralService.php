@@ -2,9 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
+use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Item;
 use App\Models\NavPurchaseOrder;
 use App\Models\NavPurchaseOrderItem;
+use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
 use App\Models\Supplier;
 use App\Models\Uom;
 use Illuminate\Support\Collection;
@@ -236,6 +241,155 @@ class BusinessCentralService
         return true;
     }
 
+    /**
+     * Tarik Sales Order dari API v2.0 (read-only) dan upsert ke staging lokal.
+     *
+     * @return int Jumlah Sales Order yang berhasil disinkronkan
+     */
+    public function syncSalesOrders(int $limit = 50, ?int $branchId = null): int
+    {
+        $url = sprintf(
+            'https://api.businesscentral.dynamics.com/v2.0/%s/%s/api/v2.0/companies(%s)/salesOrders',
+            $this->tenantId,
+            $this->environment,
+            $this->companyId,
+        );
+
+        $orders = $this->request($url, [
+            '$expand' => 'salesOrderLines',
+            '$orderby' => 'orderDate desc',
+            '$top' => $limit,
+        ]);
+
+        $branchId = $branchId ?: Branch::orderByDesc('is_central')->value('id');
+        $synced = 0;
+
+        foreach ($orders as $order) {
+            if ($this->upsertSalesOrder($order, (int) $branchId)) {
+                $synced++;
+            }
+        }
+
+        return $synced;
+    }
+
+    /**
+     * @param  array<string, mixed>  $order
+     */
+    protected function upsertSalesOrder(array $order, int $branchId): bool
+    {
+        $soNo = $order['number'] ?? null;
+
+        if (! $soNo) {
+            return false;
+        }
+
+        $customerName = $order['sellToCustomerName'] ?? $order['customerName'] ?? '-';
+        $customer = $this->syncCustomer($order['sellToCustomerNumber'] ?? null, $customerName);
+
+        if (! $customer) {
+            return false;
+        }
+
+        $so = SalesOrder::firstOrNew(['so_number' => $soNo]);
+
+        if (! $so->exists) {
+            $so->branch_id = $branchId;
+            $so->fulfillment_branch_id = $branchId;
+            $so->status = 'pending';
+            $so->user_id = auth()->id();
+        }
+
+        $so->order_date = $order['orderDate'] ?? now()->toDateString();
+        $so->customer_id = $customer->id;
+        $so->status = $this->resolveSoStatus($so->status, $this->mapSoStatus($order['status'] ?? null));
+        $so->notes = $order['notes'] ?? $order['externalDocumentNumber'] ?? null;
+        $so->save();
+
+        $lines = $order['salesOrderLines']['value'] ?? $order['salesOrderLines'] ?? [];
+        $total = 0.0;
+
+        foreach ($lines as $line) {
+            $sku = $line['lineObjectNumber'] ?? $line['itemNumber'] ?? null;
+
+            if (! $sku) {
+                continue;
+            }
+
+            $this->syncItemMaster($sku, $line['description'] ?? $sku, strtoupper($line['unitOfMeasureCode'] ?? 'PCS'));
+
+            $item = Item::where('sku', $sku)->first();
+
+            if (! $item) {
+                continue;
+            }
+
+            $qty = (float) ($line['quantity'] ?? 0);
+            $price = (float) ($line['unitPrice'] ?? 0);
+
+            SalesOrderItem::updateOrCreate(
+                ['sales_order_id' => $so->id, 'item_id' => $item->id],
+                [
+                    'uom_id' => (int) ($item->base_uom_id ?: Uom::firstOrCreate(['code' => 'PCS'], ['name' => 'PCS'])->id),
+                    'requested_qty' => $qty,
+                    'unit_price' => $price,
+                ],
+            );
+
+            $total += $qty * $price;
+        }
+
+        $so->update(['total_amount' => $total]);
+
+        return true;
+    }
+
+    protected function syncCustomer(?string $customerNumber, string $customerName): ?Customer
+    {
+        if ($customerName === '' || $customerName === '-') {
+            return null;
+        }
+
+        $existing = Customer::where('name', $customerName)->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $code = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $customerNumber ?: $customerName) ?: 'NAV') ?: 'NAV';
+        $base = substr($code, 0, 30);
+        $code = $base;
+        $suffix = 1;
+
+        while (Customer::where('code', $code)->exists()) {
+            $code = substr($base, 0, 27).'-'.++$suffix;
+        }
+
+        return Customer::create(['code' => $code, 'name' => $customerName]);
+    }
+
+    protected function mapSoStatus(?string $status): string
+    {
+        return match (strtolower(trim((string) $status))) {
+            'completed', 'shipped' => 'completed',
+            'canceled', 'cancelled' => 'cancelled',
+            'draft', 'open' => 'pending',
+            default => 'pending',
+        };
+    }
+
+    /**
+     * Status hasil pemrosesan WMS (confirmed/dst) tidak boleh tertimpa status NAV.
+     */
+    protected function resolveSoStatus(?string $currentStatus, string $navStatus): string
+    {
+        if (in_array($currentStatus, ['confirmed', 'processing', 'partial', 'completed'], true)) {
+            return $currentStatus;
+        }
+
+        return $navStatus;
+    }
+
     protected function syncSupplier(?string $vendorNumber, string $vendorName): void
     {
         if (Supplier::where('name', $vendorName)->exists()) {
@@ -262,7 +416,7 @@ class BusinessCentralService
 
         $uom = Uom::firstOrCreate(['code' => $uomCode], ['name' => $uomCode]);
 
-        $category = \App\Models\Category::first() ?? \App\Models\Category::create(['code' => 'GENERAL', 'name' => 'Umum']);
+        $category = Category::first() ?? Category::create(['code' => 'GENERAL', 'name' => 'Umum']);
 
         Item::create([
             'sku' => $sku,

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Transfer Antar Cabang')
-@section('subtitle', 'Kirim barang antar cabang dengan pelacakan selisih penerimaan')
+@section('subtitle', 'Perintah transfer antar cabang: pusat membuat perintah, cabang asal kirim, cabang tujuan terima + scan verifikasi')
 
 @section('content')
 <div class="card card-pad mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -21,7 +21,7 @@
         </div>
         <button class="btn btn-ghost">Filter</button>
     </form>
-    <a href="{{ route('transfer.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> Transfer Baru</a>
+    <a href="{{ route('transfer.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> Perintah Transfer Baru</a>
 </div>
 
 <div class="grid gap-5 lg:grid-cols-4">

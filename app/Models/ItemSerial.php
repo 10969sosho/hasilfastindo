@@ -37,6 +37,7 @@ class ItemSerial extends Model
         'qty_smallest_unit_out',
         'input_pick_by',
         'input_pick_date_time',
+        'is_active',
         'notes',
     ];
 
@@ -46,6 +47,7 @@ class ItemSerial extends Model
         'weight' => 'float',
         'qty_uom_out' => 'integer',
         'qty_smallest_unit_out' => 'float',
+        'is_active' => 'boolean',
         'input_receive_date_time' => 'datetime',
         'input_pick_date_time' => 'datetime',
     ];
@@ -75,6 +77,11 @@ class ItemSerial extends Model
         return (int) $this->qty_uom_out > 0;
     }
 
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
     /**
      * Payload detail untuk hasil scan / lookup (mobile, inbound, picking).
      *
@@ -101,6 +108,7 @@ class ItemSerial extends Model
             'so_no' => $this->so_no,
             'qty_uom_out' => (int) $this->qty_uom_out,
             'qty_smallest_unit_out' => (float) $this->qty_smallest_unit_out,
+            'is_active' => (bool) $this->is_active,
             'receive_at' => $this->input_receive_date_time?->format('d/m/Y H:i'),
             'pick_at' => $this->input_pick_date_time?->format('d/m/Y H:i'),
             'notes' => $this->notes,

@@ -47,6 +47,40 @@
     </div>
 </div>
 
+<div class="card overflow-hidden mb-5">
+    <div class="card-pad border-b border-slate-100">
+        <h2 class="text-sm font-extrabold text-slate-900">Referensi Rak &amp; Serial Number (Barang Sudah Dipick)</h2>
+        <p class="hint">Data serial diambil dari hasil konfirmasi picking (scan barcode fisik barang).</p>
+    </div>
+    <div class="table-scroll">
+        <table class="table">
+            <thead><tr><th>Serial (Barcode Fisik)</th><th>SKU</th><th>UOM</th><th>Rak / BIN</th><th class="text-right">Qty Base (PCS)</th><th>Status</th></tr></thead>
+            <tbody>
+            @forelse ($serials as $serial)
+                <tr>
+                    <td class="font-mono text-xs font-bold text-indigo-700">{{ $serial->kode_uom_serialno }}</td>
+                    <td class="text-slate-700">{{ $serial->sku }}</td>
+                    <td>{{ $serial->uom }}</td>
+                    <td class="font-bold text-slate-700">{{ $serial->bin_no ?: '-' }}</td>
+                    <td class="text-right font-semibold">{{ number_format((float) $serial->qty_smallest_unit_in, 0) }}</td>
+                    <td>
+                        @if (! $serial->is_active)
+                            <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">Invalid</span>
+                        @elseif ($serial->isPicked())
+                            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Dipick</span>
+                        @else
+                            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Belum dipick</span>
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="py-6 text-center text-slate-400">Belum ada serial yang dipick untuk SO ini.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <div class="card overflow-hidden">
     <div class="card-pad border-b border-slate-100">
         <h2 class="text-sm font-extrabold text-slate-900">Ringkasan per Item</h2>

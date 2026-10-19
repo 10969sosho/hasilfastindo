@@ -36,7 +36,7 @@
             <button class="btn btn-ghost" title="Tarik Purchase Order terbaru dari Microsoft Dynamics NAV"><x-icon name="sync" :size="16" /> Sinkronisasi dari NAV</button>
         </form>
 
-        <a href="{{ route('inbound.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> Penerimaan Baru</a>
+        <span class="hint max-w-xs">Penerimaan manual dinonaktifkan — gunakan tombol <b>Proses ke Inbound</b> per PO.</span>
     </div>
 </div>
 

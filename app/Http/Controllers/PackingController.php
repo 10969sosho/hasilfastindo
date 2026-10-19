@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Item;
+use App\Models\ItemSerial;
 use App\Models\PackingList;
 use App\Models\PackingListBox;
 use App\Models\PackingListItem;
@@ -140,7 +141,14 @@ class PackingController extends Controller
     {
         $packing->load(['salesOrder', 'customer', 'branch', 'sourceBranch', 'items.item', 'items.uom', 'boxes.items.item']);
 
-        return view('packing.show', compact('packing'));
+        // Serial yang sudah dipick untuk SO ini — jadi acuan rak & nomor serial saat packing.
+        $serials = ItemSerial::with('location')
+            ->where('so_no', $packing->salesOrder?->so_number)
+            ->orderBy('bin_no')
+            ->limit(300)
+            ->get();
+
+        return view('packing.show', compact('packing', 'serials'));
     }
 
     public function print(PackingList $packing): View

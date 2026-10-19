@@ -10,6 +10,7 @@ use App\Models\ItemSerial;
 use App\Models\ItemUomConversion;
 use App\Models\Location;
 use App\Models\NavPurchaseOrder;
+use App\Models\NavPurchaseOrderItem;
 use App\Models\Stock;
 use App\Models\Supplier;
 use App\Models\Uom;
@@ -44,8 +45,16 @@ class InboundController extends Controller
         return view('inbound.index', compact('receipts', 'summary'));
     }
 
-    public function create(Request $request): View
+    /**
+     * Penerimaan manual tidak lagi diizinkan: seluruh GRN harus ditarik dari PO NAV.
+     */
+    public function create(Request $request): View|RedirectResponse
     {
+        if (! $request->filled('nav_po_id')) {
+            return redirect()->route('nav-po.index')
+                ->with('toast', 'Penerimaan barang harus dimulai dari Daftar PO NAV.');
+        }
+
         return view('inbound.form', $this->formData($request));
     }
 
@@ -518,6 +527,7 @@ class InboundController extends Controller
             'defaultBinId' => $request->integer('location_id'),
             'navPo' => $navPo,
             'navRows' => $navRows,
+            'navOutstanding' => $navPo?->items->sum(fn (NavPurchaseOrderItem $line) => $line->remainingQtyPcs()) ?? 0,
             'navMissingSkus' => $navMissingSkus,
             'navSupplierId' => $navPo ? Supplier::where('name', $navPo->supplier_name)->value('id') : null,
             'navPos' => NavPurchaseOrder::whereIn('status', [
@@ -533,7 +543,7 @@ class InboundController extends Controller
      *
      * @param  Collection<int, Item>  $items
      * @param  Collection<int, Uom>  $uoms
-     * @return array{0: ?NavPurchaseOrder, 1: array<int, array{item_id: int, uom_id: int|null, received_qty: float, total_pcs: float, nav_qty: float}>, 2: array<int, string>}
+     * @return array{0: ?NavPurchaseOrder, 1: array<int, array{item_id: int, uom_id: int|null, received_qty: float, total_pcs: float, nav_qty: float, outstanding: float}>, 2: array<int, string>}
      */
     private function navPrefill(Request $request, $items, $uoms): array
     {
@@ -576,6 +586,7 @@ class InboundController extends Controller
                 'received_qty' => (float) ($multiplier > 0 ? $fmt($nav / $multiplier) : $nav),
                 'total_pcs' => $nav,
                 'nav_qty' => $nav,
+                'outstanding' => $line->remainingQtyPcs(),
             ];
         }
 

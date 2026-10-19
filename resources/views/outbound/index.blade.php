@@ -22,7 +22,13 @@
         <button class="btn btn-ghost">Filter</button>
     </form>
 
-    <a href="{{ route('outbound.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> SO Baru</a>
+    <div class="flex flex-wrap items-end gap-2">
+        <form method="POST" action="{{ route('outbound.sync') }}">
+            @csrf
+            <button class="btn btn-ghost" title="Tarik Sales Order terbaru dari Microsoft Dynamics NAV (read-only)"><x-icon name="sync" :size="16" /> Sinkronisasi SO dari NAV</button>
+        </form>
+        <a href="{{ route('outbound.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> SO Baru</a>
+    </div>
 </div>
 
 <div class="card overflow-hidden">

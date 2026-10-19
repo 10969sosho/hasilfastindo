@@ -31,7 +31,10 @@
         <button class="btn btn-ghost">Filter</button>
     </form>
 
-    <a href="{{ route('inbound.create') }}" class="btn btn-primary"><x-icon name="plus" :size="16" /> Penerimaan Baru</a>
+    <div class="flex flex-wrap items-center gap-3">
+        <p class="hint max-w-md text-right">Penerimaan barang dimulai dari Daftar PO NAV (read-only).</p>
+        <a href="{{ route('nav-po.index') }}" class="btn btn-primary"><x-icon name="inbound" :size="16" /> Buka Daftar PO NAV</a>
+    </div>
 </div>
 
 <div class="card overflow-hidden">

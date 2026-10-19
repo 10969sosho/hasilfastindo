@@ -29,6 +29,31 @@
 
 <div class="grid gap-5 lg:grid-cols-3">
     <div class="lg:col-span-2">
+        @if ($canScan)
+            <div class="card card-pad mb-5">
+                <h2 class="mb-1 text-sm font-extrabold text-slate-900">Scan Verifikasi Penerimaan</h2>
+                <p class="hint mb-3">Cabang tujuan memindai barcode barang yang diterima. Penerimaan hanya bisa disimpan setelah minimal 1 barcode terverifikasi.</p>
+
+                <div class="flex gap-2">
+                    <input class="input font-mono flex-1" id="trfBarcode" placeholder="ABC123-DUS-GRN-202610-0001-001" autocomplete="off">
+                    <button type="button" class="btn btn-primary" id="trfScanBtn"><x-icon name="scan" :size="16" /> Verifikasi</button>
+                </div>
+
+                <div id="trfResult" class="mt-3"></div>
+
+                <div class="mt-3">
+                    <p class="label">Barcode Terverifikasi ({{ $scans->count() }})</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        @forelse ($scans as $scan)
+                            <span class="rounded-full bg-emerald-50 px-2.5 py-1 font-mono text-[11px] font-bold text-emerald-700">{{ $scan->kode_uom_serialno }}</span>
+                        @empty
+                            <span class="text-xs text-slate-400">Belum ada barcode terverifikasi.</span>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="card overflow-hidden">
             <div class="card-pad border-b border-slate-100">
                 <h2 class="text-sm font-extrabold text-slate-900">Item Transfer</h2>
@@ -118,3 +143,44 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    const trfUrl = @json(route('transfer.scan', $transfer));
+    const trfResult = document.getElementById('trfResult');
+    const trfInput = document.getElementById('trfBarcode');
+
+    async function trfScan() {
+        const code = trfInput.value.trim();
+        if (!code) return;
+
+        trfResult.innerHTML = '<p class="hint">Memeriksa barcode...</p>';
+
+        try {
+            const res = await fetch(trfUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                },
+                body: JSON.stringify({ barcode: code }),
+            });
+            const data = await res.json();
+
+            trfResult.innerHTML = `<p class="rounded-lg px-4 py-3 text-sm font-bold ${res.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}">${data.message}</p>`;
+
+            if (res.ok) {
+                trfInput.value = '';
+                trfInput.focus();
+                setTimeout(() => location.reload(), 700);
+            }
+        } catch (e) {
+            trfResult.innerHTML = '<p class="rounded-lg bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">Gagal terhubung ke server.</p>';
+        }
+    }
+
+    document.getElementById('trfScanBtn')?.addEventListener('click', trfScan);
+    trfInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); trfScan(); } });
+</script>
+@endpush

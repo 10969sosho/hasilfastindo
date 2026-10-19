@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Batch;
 use App\Models\Item;
+use App\Models\ItemSerial;
 use App\Models\Location;
 use App\Models\Stock;
 use App\Models\StockTransfer;
 use App\Models\StockTransferItem;
+use App\Models\StockTransferScan;
 use App\Models\Uom;
 use App\Models\Warehouse;
 use App\Services\StockService;
@@ -37,8 +39,16 @@ class TransferController extends Controller
         return view('transfer.index', compact('transfers', 'incoming'));
     }
 
-    public function create(Request $request): View
+    /**
+     * Perintah Transfer hanya dibuat Superadmin / Pusat.
+     */
+    public function create(Request $request): View|RedirectResponse
     {
+        if (! $this->canCreatePerintah()) {
+            return redirect()->route('transfer.index')
+                ->with('toast', 'Perintah Transfer hanya dibuat oleh Superadmin / Pusat.');
+        }
+
         $fromBranchId = $request->integer('from_branch_id') ?: $this->activeBranchId();
 
         return view('transfer.form', [
@@ -95,6 +105,11 @@ class TransferController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if (! $this->canCreatePerintah()) {
+            return redirect()->route('transfer.index')
+                ->with('toast', 'Perintah Transfer hanya dibuat oleh Superadmin / Pusat.');
+        }
+
         $data = $request->validate([
             'from_branch_id' => ['required', 'exists:branches,id'],
             'to_branch_id' => ['required', 'exists:branches,id', 'different:from_branch_id'],
@@ -162,8 +177,54 @@ class TransferController extends Controller
         return view('transfer.show', [
             'transfer' => $transfer,
             'toBins' => $toBins,
+            'scans' => $transfer->scans()->with(['serial', 'user'])->latest('id')->get(),
+            'canScan' => $transfer->status === 'in_transit' && $this->allowedFor((int) $transfer->to_branch_id),
             'canShip' => $transfer->status === 'draft' && $this->allowedFor((int) $transfer->from_branch_id),
             'canReceive' => $transfer->status === 'in_transit' && $this->allowedFor((int) $transfer->to_branch_id),
+        ]);
+    }
+
+    /**
+     * Scan verifikasi barcode oleh cabang tujuan sebelum penerimaan.
+     */
+    public function scan(Request $request, StockTransfer $transfer)
+    {
+        $this->guardBranch((int) $transfer->to_branch_id);
+
+        if ($transfer->status !== 'in_transit') {
+            return response()->json(['ok' => false, 'message' => 'Transfer belum dalam perjalanan (in transit).'], 422);
+        }
+
+        $data = $request->validate(['barcode' => ['required', 'string', 'max:160']]);
+
+        $serial = ItemSerial::with('location')->find($data['barcode']);
+
+        if (! $serial) {
+            return response()->json(['ok' => false, 'message' => "Barcode {$data['barcode']} tidak ditemukan."], 404);
+        }
+
+        $inTransfer = $transfer->items()
+            ->whereHas('item', fn ($q) => $q->where('sku', $serial->sku))
+            ->exists();
+
+        if (! $inTransfer) {
+            return response()->json([
+                'ok' => false,
+                'message' => "SKU {$serial->sku} tidak ada dalam perintah transfer {$transfer->transfer_no}.",
+                'payload' => $serial->toLookupPayload(),
+            ], 422);
+        }
+
+        StockTransferScan::updateOrCreate(
+            ['stock_transfer_id' => $transfer->id, 'kode_uom_serialno' => $serial->kode_uom_serialno],
+            ['action' => 'receive', 'user_id' => auth()->id()]
+        );
+
+        return response()->json([
+            'ok' => true,
+            'message' => "Barcode {$serial->kode_uom_serialno} terverifikasi.",
+            'payload' => $serial->toLookupPayload(),
+            'scanned' => $transfer->scans()->count(),
         ]);
     }
 
@@ -226,6 +287,10 @@ class TransferController extends Controller
 
         if ($transfer->status !== 'in_transit') {
             return back()->with('toast', 'Transfer belum dikirim.');
+        }
+
+        if ($transfer->scans()->count() === 0) {
+            return back()->with('toast', 'Lakukan scan verifikasi barcode terlebih dahulu sebelum menerima transfer.');
         }
 
         $data = $request->validate([
@@ -304,6 +369,13 @@ class TransferController extends Controller
     private function allowedFor(int $branchId): bool
     {
         return $this->canSeeAllBranches() || $branchId === (int) $this->activeBranchId();
+    }
+
+    private function canCreatePerintah(): bool
+    {
+        $user = auth()->user();
+
+        return $user && in_array($user->role, ['super_admin', 'central'], true);
     }
 
     /**

@@ -49,7 +49,7 @@
                 <div class="table-scroll">
                     <table class="table">
                         <thead>
-                            <tr><th>Item</th><th class="text-right">Dipesan</th><th class="text-right">Terpenuhi</th><th class="text-right">Sisa</th><th class="w-32">Qty Keluar</th><th>Rekomendasi FIFO</th></tr>
+                            <tr><th>Item</th><th class="text-right">Dipesan</th><th class="text-right">Terpenuhi</th><th class="text-right">Sisa</th><th class="w-32">Qty Keluar</th><th>Rekomendasi FIFO</th><th class="min-w-[14rem]">Rak &amp; Serial (Referensi Picking)</th></tr>
                         </thead>
                         <tbody>
                         @forelse ($lines as $row)
@@ -89,9 +89,26 @@
                                         <span class="rounded-md bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-600">Stok tidak mencukupi di cabang ini</span>
                                     @endif
                                 </td>
+                                <td>
+                                    @if ($row['serials']->isEmpty())
+                                        <span class="text-xs text-slate-400">Belum ada serial tersedia</span>
+                                    @else
+                                        <ul class="space-y-0.5">
+                                            @foreach ($row['serials']->take(6) as $serial)
+                                                <li class="rounded-md bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+                                                    <b class="text-indigo-700">{{ $serial->bin_no ?: '-' }}</b>
+                                                    · <span class="font-mono">{{ $serial->kode_uom_serialno }}</span>
+                                                </li>
+                                            @endforeach
+                                            @if ($row['serials']->count() > 6)
+                                                <li class="text-[11px] font-bold text-slate-400">+{{ $row['serials']->count() - 6 }} serial lainnya</li>
+                                            @endif
+                                        </ul>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="py-6 text-center text-slate-400">Tidak ada item.</td></tr>
+                            <tr><td colspan="7" class="py-6 text-center text-slate-400">Tidak ada item.</td></tr>
                         @endforelse
                         </tbody>
                     </table>

@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class StockMovement extends Model
 {
     public const TYPES = [
-        'IN', 'OUT', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUSTMENT', 'REPACK', 'REPACK_OUT',
+        'IN', 'OUT', 'PUTAWAY', 'TRANSFER_IN', 'TRANSFER_OUT', 'TRANSFER_BIN', 'ADJUSTMENT',
+        'REPACK', 'REPACK_OUT', 'CONVERSION',
     ];
 
     protected $fillable = [

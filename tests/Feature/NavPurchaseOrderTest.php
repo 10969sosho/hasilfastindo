@@ -114,17 +114,12 @@ class NavPurchaseOrderTest extends TestCase
             ->assertSee('name="items[0][nav_qty]" value="100"', false)
             ->assertSee($this->supplier->name, false);
 
-        // Form biasa (tanpa parameter) tetap menawarkan pemilihan PO NAV.
+        // Penerimaan manual (tanpa nav_po_id) tidak lagi diizinkan — diarahkan ke daftar PO NAV.
         $this->actingAs($this->user)->get(route('inbound.create'))
-            ->assertOk()
-            ->assertSee('Integrasi Purchase Order (Dynamics NAV)', false)
-            ->assertSee($po->po_no, false);
+            ->assertRedirect(route('nav-po.index'));
 
-        // Alternatif: prefill juga bisa dipanggil lewat ?po_no=.
         $this->actingAs($this->user)->get(route('inbound.create', ['po_no' => $po->po_no]))
-            ->assertOk()
-            ->assertSee('value="'.$po->po_no.'"', false)
-            ->assertSee('name="items[0][nav_qty]" value="100"', false);
+            ->assertRedirect(route('nav-po.index'));
     }
 
     public function test_receiving_from_nav_po_updates_status_stock_and_serials(): void

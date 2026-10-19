@@ -40,7 +40,7 @@
         @if ($navPo)
             <div class="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
                 <x-icon name="inbound" :size="16" />
-                <span>Form ditarik dari PO NAV <span class="font-mono font-bold">{{ $navPo->po_no }}</span> · {{ $navPo->supplier_name }} — Qty NAV (PCS) terisi otomatis.</span>
+                <span>Form ditarik dari PO NAV <span class="font-mono font-bold">{{ $navPo->po_no }}</span> · {{ $navPo->supplier_name }} — Qty NAV (PCS) terisi otomatis. Sisa Qty Outstanding Base: <b>{{ number_format((float) $navOutstanding, 0) }} PCS</b>.</span>
                 <a href="{{ route('nav-po.show', $navPo) }}" class="ml-auto text-xs font-bold underline">Lihat detail PO</a>
             </div>
             @if (! $navSupplierId)
@@ -164,7 +164,7 @@
             <div class="table-scroll w-full">
                 <table class="table w-full min-w-[72rem]">
                     <thead>
-                        <tr><th class="min-w-[16rem]">Item</th><th class="min-w-[8rem]">Batch No</th><th class="min-w-[7rem]">Satuan</th><th class="w-28">Qty Kemasan</th><th class="w-32">Total Fisik (PCS)</th><th class="w-32">Kapasitas (PCS/UOM)</th><th class="w-32">Qty PO NAV (PCS)</th><th class="min-w-[9rem]">Berat / Unit (kg)</th><th class="min-w-[9rem]">Kode BIN / Rak</th><th class="w-14"></th></tr>
+                        <tr><th class="min-w-[16rem]">Item</th><th class="min-w-[8rem]">Batch No</th><th class="min-w-[7rem]">Satuan</th><th class="w-28">Qty Kemasan</th><th class="w-32">Total Fisik (PCS)</th><th class="w-32">Kapasitas (PCS/UOM)</th><th class="w-32">Qty PO NAV (PCS)</th><th class="w-36">Qty Outstanding Base (PCS)</th><th class="min-w-[9rem]">Berat / Unit (kg)</th><th class="min-w-[9rem]">Kode BIN / Rak</th><th class="w-14"></th></tr>
                     </thead>
                     <tbody id="itemBody">
                         @php
@@ -173,7 +173,7 @@
                         @endphp
                         @for ($idx = 0; $idx < $rowCount; $idx++)
                             @php
-                                $row = $navRows[$idx] ?? ['item_id' => null, 'uom_id' => null, 'received_qty' => 1, 'total_pcs' => null, 'nav_qty' => null];
+                                $row = $navRows[$idx] ?? ['item_id' => null, 'uom_id' => null, 'received_qty' => 1, 'total_pcs' => null, 'nav_qty' => null, 'outstanding' => null];
                             @endphp
                         <tr class="item-row">
                             <td>
@@ -194,6 +194,7 @@
                             <td><input class="input total-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][total_pcs]" value="{{ old("items.$idx.total_pcs", $row['total_pcs']) }}" placeholder="90000"></td>
                             <td><input class="input per-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][pcs_per_uom]" value="{{ old("items.$idx.pcs_per_uom") }}" placeholder="10000"></td>
                             <td><input class="input nav-input text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][nav_qty]" value="{{ old("items.$idx.nav_qty", $row['nav_qty']) }}" placeholder="Opsional" disabled></td>
+                            <td class="text-right font-mono text-xs font-bold text-amber-700">{{ isset($row['outstanding']) && $row['outstanding'] !== null ? number_format((float) $row['outstanding'], 0) : '-' }}</td>
                             <td><input class="input weight-row text-right" type="number" step="0.001" min="0" name="items[{{ $idx }}][weight]" value="{{ old("items.$idx.weight") }}" placeholder="Mengikuti Standar"></td>
                             <td>
                                 <select class="input" name="items[{{ $idx }}][target_bin_id]">

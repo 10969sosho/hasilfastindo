@@ -11,6 +11,7 @@ use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\Stock;
 use App\Models\Uom;
+use App\Services\BusinessCentralService;
 use App\Services\StockService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,21 @@ class OutboundController extends Controller
         $orders = $this->scopeBranch($query)->latest('order_date')->paginate(12)->withQueryString();
 
         return view('outbound.index', compact('orders'));
+    }
+
+    /**
+     * Tarik Sales Order dari NAV (read-only) — tidak pernah post balik ke API NAV.
+     */
+    public function sync(Request $request, BusinessCentralService $bcService): RedirectResponse
+    {
+        try {
+            $branchId = $this->activeBranchId() ?: (int) Branch::orderByDesc('is_central')->value('id');
+            $count = $bcService->syncSalesOrders((int) $request->input('limit', 50), $branchId);
+        } catch (\Throwable $e) {
+            return back()->with('toast', 'Sinkronisasi SO dari NAV gagal: '.substr($e->getMessage(), 0, 160));
+        }
+
+        return back()->with('toast', "{$count} Sales Order berhasil disinkronkan dari Microsoft Dynamics NAV.");
     }
 
     public function create(): View
@@ -104,7 +120,17 @@ class OutboundController extends Controller
         $sourceBranchId = $request->integer('source_branch_id')
             ?: ($outbound->fulfillment_branch_id ?: $this->activeBranchId());
 
-        $lines = $outbound->items->map(function (SalesOrderItem $line) use ($sourceBranchId) {
+        // Referensi rak & serial number per SKU untuk keperluan picking (baca saja).
+        $availableSerials = ItemSerial::with('location')
+            ->whereIn('sku', $outbound->items->pluck('item.sku')->filter()->unique())
+            ->active()
+            ->where('qty_uom_out', 0)
+            ->orderBy('input_receive_date_time')
+            ->limit(300)
+            ->get()
+            ->groupBy('sku');
+
+        $lines = $outbound->items->map(function (SalesOrderItem $line) use ($sourceBranchId, $availableSerials) {
             $remaining = max(0, (float) $line->requested_qty - (float) $line->fulfilled_qty);
             $pcsRemaining = $this->toPcs((int) $line->item_id, $remaining, (int) $line->uom_id);
 
@@ -128,6 +154,7 @@ class OutboundController extends Controller
                     'qty' => $a['qty'],
                 ]),
                 'availableByBranch' => $availableByBranch,
+                'serials' => $availableSerials[$line->item?->sku] ?? collect(),
             ];
         })->values();
 

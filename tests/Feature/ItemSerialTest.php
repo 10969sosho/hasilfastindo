@@ -10,6 +10,8 @@ use App\Models\Item;
 use App\Models\ItemSerial;
 use App\Models\ItemUomConversion;
 use App\Models\Location;
+use App\Models\NavPurchaseOrder;
+use App\Models\NavPurchaseOrderItem;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\Supplier;
@@ -215,7 +217,27 @@ class ItemSerialTest extends TestCase
         $gr = $this->receiveReceipt();
         $so = $this->createSalesOrder();
 
+        $po = NavPurchaseOrder::create([
+            'po_no' => 'PO-NAV-2026-0999',
+            'order_date' => now()->toDateString(),
+            'supplier_name' => $this->supplier->name,
+            'status' => NavPurchaseOrder::STATUS_RELEASED,
+        ]);
+        NavPurchaseOrderItem::create([
+            'po_id' => $po->id,
+            'sku' => $this->item->sku,
+            'item_name' => $this->item->name,
+            'uom_nav' => 'BOX',
+            'nav_qty_pcs' => 100,
+            'received_qty_pcs' => 0,
+            'status' => NavPurchaseOrder::STATUS_OPEN,
+        ]);
+
+        // Form penerimaan kini hanya bisa dibuka dari daftar PO NAV.
         $this->actingAs($this->user)->get(route('inbound.create'))
+            ->assertRedirect(route('nav-po.index'));
+
+        $this->actingAs($this->user)->get(route('inbound.create', ['nav_po_id' => $po->id]))
             ->assertOk()
             ->assertSee('Qty NAV', false)
             ->assertSee('navSummary', false);

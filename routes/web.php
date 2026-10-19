@@ -1,17 +1,22 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BinTransferController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\ConversionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\DriverDeliveryController;
 use App\Http\Controllers\InboundController;
 use App\Http\Controllers\ItemController;
+use App\Http\Controllers\KoliController;
 use App\Http\Controllers\MobileWarehouseController;
 use App\Http\Controllers\MonitoringPusatController;
 use App\Http\Controllers\NavPurchaseOrderController;
 use App\Http\Controllers\OutboundController;
 use App\Http\Controllers\PackingController;
 use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PutawayController;
 use App\Http\Controllers\StockOpnameController;
 use App\Http\Controllers\SummarySoController;
 use App\Http\Controllers\TransferController;
@@ -95,6 +100,31 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::post('/inbound/{inbound}/putaway', [InboundController::class, 'putaway'])->name('inbound.putaway');
     Route::get('/inbound/{inbound}/print-labels', [InboundController::class, 'printLabels'])->name('inbound.print');
 
+    /* ------------------------------------------------- Tahap 2: Putaway */
+    Route::get('/putaway', [PutawayController::class, 'index'])->name('putaway.index');
+    Route::get('/putaway/lookup', [PutawayController::class, 'lookup'])->name('putaway.lookup');
+    Route::post('/putaway', [PutawayController::class, 'store'])->name('putaway.store');
+
+    /* ------------------------------------------- Transfer Antar Bin */
+    Route::get('/bin-transfers', [BinTransferController::class, 'index'])->name('bin-transfers.index');
+    Route::get('/bin-transfers/lookup', [BinTransferController::class, 'lookup'])->name('bin-transfers.lookup');
+    Route::post('/bin-transfers', [BinTransferController::class, 'store'])->name('bin-transfers.store');
+
+    /* --------------------------------------------- Konversi Satuan */
+    Route::get('/conversions', [ConversionController::class, 'index'])->name('conversion.index');
+    Route::get('/conversions/create', [ConversionController::class, 'create'])->name('conversion.create');
+    Route::post('/conversions', [ConversionController::class, 'store'])->name('conversion.store');
+    Route::get('/conversions/lookup', [ConversionController::class, 'lookup'])->name('conversion.lookup');
+    Route::get('/conversions/{conversion}', [ConversionController::class, 'show'])->name('conversion.show');
+    Route::post('/conversions/{conversion}/execute', [ConversionController::class, 'execute'])->name('conversion.execute');
+    Route::get('/conversions/{conversion}/print', [ConversionController::class, 'print'])->name('conversion.print');
+
+    /* --------------------------------------------- Generate Barcode Koli */
+    Route::get('/koli', [KoliController::class, 'index'])->name('koli.index');
+    Route::get('/koli/{packing}/create', [KoliController::class, 'create'])->name('koli.create');
+    Route::post('/koli/{packing}', [KoliController::class, 'store'])->name('koli.store');
+    Route::get('/koli/{packing}/print', [KoliController::class, 'print'])->name('koli.print');
+
     /* ------------------------------------------ Staging: PO dari NAV/BC */
     Route::get('/nav-purchase-orders', [NavPurchaseOrderController::class, 'index'])->name('nav-po.index');
     Route::post('/nav-purchase-orders/sync', [NavPurchaseOrderController::class, 'sync'])->name('nav-po.sync');
@@ -102,6 +132,7 @@ Route::middleware(['auth', 'branch'])->group(function () {
 
     /* -------------------------------------------------- Outbound (SO/GI) */
     Route::get('/outbound', [OutboundController::class, 'index'])->name('outbound.index');
+    Route::post('/outbound/sync-nav', [OutboundController::class, 'sync'])->name('outbound.sync');
     Route::get('/outbound/create', [OutboundController::class, 'create'])->name('outbound.create');
     Route::post('/outbound', [OutboundController::class, 'store'])->name('outbound.store');
     Route::get('/outbound/{outbound}', [OutboundController::class, 'show'])->name('outbound.show');
@@ -120,6 +151,7 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::get('/transfers/{transfer}', [TransferController::class, 'show'])->name('transfer.show');
     Route::post('/transfers/{transfer}/ship', [TransferController::class, 'ship'])->name('transfer.ship');
     Route::post('/transfers/{transfer}/receive', [TransferController::class, 'receive'])->name('transfer.receive');
+    Route::post('/transfers/{transfer}/scan', [TransferController::class, 'scan'])->name('transfer.scan');
     Route::delete('/transfers/{transfer}', [TransferController::class, 'destroy'])->name('transfer.destroy');
 
     /* ------------------------------------------------------- Radar Summary SO */
@@ -146,6 +178,12 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::post('/delivery/{delivery}/scan-out/api', [DeliveryController::class, 'scanOutApi'])->name('delivery.scan.api');
     Route::post('/delivery/{delivery}/status', [DeliveryController::class, 'updateStatus'])->name('delivery.status');
     Route::get('/delivery/{delivery}/manifest', [DeliveryController::class, 'manifest'])->name('delivery.manifest');
+
+    /* ------------------------------------------- Portal Sopir (Mobile) */
+    Route::get('/driver', [DriverDeliveryController::class, 'index'])->name('driver.index');
+    Route::get('/driver/{delivery}', [DriverDeliveryController::class, 'show'])->name('driver.show');
+    Route::post('/driver/{delivery}/load', [DriverDeliveryController::class, 'loadApi'])->name('driver.load');
+    Route::post('/driver/{delivery}/arrive', [DriverDeliveryController::class, 'arriveApi'])->name('driver.arrive');
 
     /* --------------------------------------------------------- Stok Opname */
     Route::get('/opname', [StockOpnameController::class, 'index'])->name('opname.index');

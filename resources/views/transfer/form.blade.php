@@ -1,12 +1,17 @@
 @extends('layouts.app')
 
-@section('title', 'Transfer Baru')
+@section('title', 'Perintah Transfer Baru')
+@section('subtitle', 'Dibuat Superadmin / Pusat — cabang asal mengirim (in transit), cabang tujuan menerima dengan scan verifikasi.')
 
 @section('content')
 <form method="POST" action="{{ route('transfer.store') }}" class="grid gap-5 lg:grid-cols-3">
     @csrf
 
     <div class="space-y-5 lg:col-span-2">
+        <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
+            <x-icon name="transfer" :size="16" class="inline" />
+            Alur: Perintah dibuat pusat → cabang asal <b>Kirim Barang</b> (in_transit) → cabang tujuan <b>scan verifikasi</b> lalu <b>Terima Barang</b> (received).
+        </div>
         <div class="card card-pad">
             <h2 class="mb-4 text-sm font-extrabold text-slate-900">Rute Transfer</h2>
             <div class="grid gap-4 sm:grid-cols-2">

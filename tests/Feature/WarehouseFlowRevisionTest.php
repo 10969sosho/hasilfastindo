@@ -14,6 +14,9 @@ use App\Models\Location;
 use App\Models\PackingList;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
+use App\Models\Stock;
+use App\Models\StockMovement;
+use App\Models\StockTransfer;
 use App\Models\Supplier;
 use App\Models\Uom;
 use App\Models\User;
@@ -254,6 +257,160 @@ class WarehouseFlowRevisionTest extends TestCase
             ->assertOk()
             ->assertSee($masterBox->first())
             ->assertSee($packingLists->first()->salesOrder->so_number);
+    }
+
+    public function test_putaway_and_bin_transfer_move_serial_between_bins(): void
+    {
+        $target = Location::create(['warehouse_id' => $this->warehouse->id, 'code' => 'BIN-B2']);
+
+        $this->receiveReceipt();
+        $serial = ItemSerial::firstOrFail();
+
+        $this->actingAs($this->user)->get(route('putaway.lookup', ['barcode' => $serial->kode_uom_serialno]))
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('payload.sku', 'ABC123');
+
+        $this->actingAs($this->user)->post(route('putaway.store'), [
+            'kode_uom_serialno' => $serial->kode_uom_serialno,
+            'location_id' => $target->id,
+            'weight' => 3.5,
+        ])->assertRedirect();
+
+        $serial->refresh();
+        $this->assertSame('BIN-B2', $serial->bin_no);
+        $this->assertSame((int) $target->id, (int) $serial->location_id);
+        $this->assertSame(3.5, (float) $serial->weight);
+        $this->assertTrue(StockMovement::where('type', 'PUTAWAY')->where('item_id', $this->item->id)->exists());
+
+        $qtyBefore = (float) Stock::sum('quantity_pcs');
+
+        $this->actingAs($this->user)->post(route('bin-transfers.store'), [
+            'kode_uom_serialno' => $serial->kode_uom_serialno,
+            'location_id' => $this->bin->id,
+        ])->assertRedirect();
+
+        $serial->refresh();
+        $this->assertSame('BIN-A1', $serial->bin_no);
+        $this->assertTrue(StockMovement::where('type', 'TRANSFER_BIN')->where('item_id', $this->item->id)->exists());
+        $this->assertSame($qtyBefore, (float) Stock::sum('quantity_pcs'));
+
+        // BIN sama dengan posisi sekarang -> ditolak.
+        $this->actingAs($this->user)->post(route('bin-transfers.store'), [
+            'kode_uom_serialno' => $serial->kode_uom_serialno,
+            'location_id' => $this->bin->id,
+        ])->assertSessionHasErrors('barcode');
+    }
+
+    public function test_perintah_transfer_wajib_scan_verifikasi_sebelum_diterima(): void
+    {
+        $branchUser = User::create([
+            'name' => 'Ops Cabang',
+            'email' => 'ops.cabang@test.test',
+            'password' => 'password',
+            'role' => 'branch',
+            'branch_id' => $this->branch->id,
+        ]);
+
+        $this->actingAs($branchUser)->get(route('transfer.create'))
+            ->assertRedirect(route('transfer.index'));
+
+        $toBranch = Branch::create(['code' => 'BR2', 'name' => 'Cabang Timur']);
+        $toWarehouse = Warehouse::create(['branch_id' => $toBranch->id, 'code' => 'WH2', 'name' => 'Gudang Timur']);
+        $toBin = Location::create(['warehouse_id' => $toWarehouse->id, 'code' => 'BIN-T1']);
+
+        $this->receiveReceipt();
+        $serial = ItemSerial::firstOrFail();
+
+        $this->actingAs($this->user)->post(route('transfer.store'), [
+            'from_branch_id' => $this->branch->id,
+            'to_branch_id' => $toBranch->id,
+            'from_warehouse_id' => $this->warehouse->id,
+            'to_warehouse_id' => $toWarehouse->id,
+            'items' => [[
+                'item_id' => $this->item->id,
+                'uom_id' => $this->box->id,
+                'qty' => 1,
+                'from_location_id' => $this->bin->id,
+                'to_location_id' => $toBin->id,
+            ]],
+        ])->assertRedirect();
+
+        $transfer = StockTransfer::firstOrFail();
+
+        // Sebelum dikirim: scan ditolak.
+        $this->actingAs($this->user)->postJson(route('transfer.scan', $transfer), [
+            'barcode' => $serial->kode_uom_serialno,
+        ])->assertStatus(422);
+
+        $this->actingAs($this->user)->post(route('transfer.ship', $transfer))->assertRedirect();
+        $this->assertSame('in_transit', $transfer->fresh()->status);
+
+        // Penerimaan tanpa scan verifikasi ditolak.
+        $this->actingAs($this->user)->post(route('transfer.receive', $transfer), [
+            'lines' => [[
+                'stock_transfer_item_id' => $transfer->items()->firstOrFail()->id,
+                'received_qty' => 1,
+                'to_location_id' => $toBin->id,
+            ]],
+        ])->assertSessionHas('toast');
+        $this->assertSame('in_transit', $transfer->fresh()->status);
+
+        $this->postJson(route('transfer.scan', $transfer), ['barcode' => 'TIDAK-ADA'])
+            ->assertStatus(404);
+
+        $this->postJson(route('transfer.scan', $transfer), ['barcode' => $serial->kode_uom_serialno])
+            ->assertOk()
+            ->assertJsonPath('scanned', 1);
+
+        $this->postJson(route('transfer.scan', $transfer), ['barcode' => $serial->kode_uom_serialno])
+            ->assertOk();
+
+        $this->post(route('transfer.receive', $transfer), [
+            'lines' => [[
+                'stock_transfer_item_id' => $transfer->items()->firstOrFail()->id,
+                'received_qty' => 1,
+                'to_location_id' => $toBin->id,
+            ]],
+        ])->assertRedirect();
+
+        $this->assertSame('received', $transfer->fresh()->status);
+        $this->assertSame(1, $transfer->scans()->count());
+    }
+
+    public function test_portal_sopir_scan_muat_lalu_scan_tiba(): void
+    {
+        $packing = $this->createPackingList('SO-202610-0001');
+
+        $this->actingAs($this->user)->post(route('delivery.store'), [
+            'packing_list_ids' => [$packing->id],
+            'method' => 'armada',
+        ])->assertRedirect();
+
+        $delivery = Delivery::firstOrFail();
+        $barcode = $delivery->items()->firstOrFail()->barcode;
+
+        $this->actingAs($this->user)->get(route('driver.index'))->assertOk()->assertSee($delivery->delivery_no);
+        $this->actingAs($this->user)->get(route('driver.show', $delivery))->assertOk()->assertSee('Scan Muat');
+
+        $this->postJson(route('driver.load', $delivery), ['barcode' => 'TIDAK-ADA'])
+            ->assertStatus(422);
+
+        $this->postJson(route('driver.load', $delivery), ['barcode' => $barcode])
+            ->assertOk()
+            ->assertJsonPath('status', 'in_delivery');
+
+        $this->assertSame('in_delivery', $delivery->fresh()->status);
+        $this->assertNotNull($delivery->fresh()->departure_time);
+
+        $this->postJson(route('driver.arrive', $delivery), ['barcode' => $barcode])
+            ->assertOk()
+            ->assertJsonPath('status', 'arrived');
+
+        $delivery->refresh();
+        $this->assertSame('arrived', $delivery->status);
+        $this->assertNotNull($delivery->arrival_time);
+        $this->assertTrue($delivery->tracks()->where('status', 'arrived')->exists());
     }
 
     private function receivePayload(array $overrides = []): array
