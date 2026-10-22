@@ -116,14 +116,18 @@
         ['type' => 'link', 'label' => 'Pengeluaran (SO)', 'icon' => 'outbound', 'match' => 'outbound.', 'route' => 'outbound.index'],
         ['type' => 'link', 'label' => 'Radar Summary SO', 'icon' => 'radar', 'match' => 'summary.', 'route' => 'summary.index'],
 
-        ['type' => 'section', 'label' => 'Operasional Gudang'],
-        ['type' => 'link', 'label' => 'Dashboard', 'icon' => 'dashboard', 'match' => 'dashboard', 'route' => 'dashboard'],
+        ['type' => 'section', 'label' => 'Penerimaan (Inbound)'],
         ['type' => 'link', 'label' => 'Penerimaan Barang', 'icon' => 'inbound', 'match' => 'inbound.', 'route' => 'inbound.index'],
         ['type' => 'link', 'label' => 'Putaway / Taruh Rak', 'icon' => 'scan', 'match' => 'putaway.', 'route' => 'putaway.index'],
+
+        ['type' => 'section', 'label' => 'Pengeluaran (Outbound)'],
         ['type' => 'link', 'label' => 'Picking & Packing', 'icon' => 'clipboard', 'match' => 'packing.', 'route' => 'packing.index'],
         ['type' => 'link', 'label' => 'Generate Barcode Koli', 'icon' => 'boxes', 'match' => 'koli.', 'route' => 'koli.index'],
         ['type' => 'link', 'label' => 'Pengiriman & Scan Out', 'icon' => 'truck', 'match' => 'delivery.', 'route' => 'delivery.index'],
         ['type' => 'link', 'label' => 'Portal Sopir', 'icon' => 'truck', 'match' => 'driver.', 'route' => 'driver.index'],
+
+        ['type' => 'section', 'label' => 'Operasional Internal'],
+        ['type' => 'link', 'label' => 'Dashboard', 'icon' => 'dashboard', 'match' => 'dashboard', 'route' => 'dashboard'],
         ['type' => 'link', 'label' => 'Transfer Antar Cabang', 'icon' => 'transfer', 'match' => 'transfer.', 'route' => 'transfer.index'],
         ['type' => 'link', 'label' => 'Transfer Antar Bin', 'icon' => 'warehouse', 'match' => 'bin-transfers.', 'route' => 'bin-transfers.index'],
         ['type' => 'link', 'label' => 'Konversi Satuan', 'icon' => 'sync', 'match' => 'conversion.', 'route' => 'conversion.index'],
