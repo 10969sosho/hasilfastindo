@@ -129,10 +129,12 @@ class InboundController extends Controller
             $itemId = (int) $row['item_id'];
             $default = $this->conversionMultiplier($itemId, (int) $row['received_uom_id'], (int) Item::whereKey($row['item_id'])->value('base_uom_id')) ?? 1;
 
-            if ($mode === 'per_uom' && ($row['pcs_per_uom'] ?? '') !== '' && (float) $row['pcs_per_uom'] > 0) {
+            if (($row['pcs_per_uom'] ?? '') !== '' && (float) $row['pcs_per_uom'] > 0) {
                 $multiplier = (float) $row['pcs_per_uom'];
-                $totalPcs = $qty * $multiplier;
-            } elseif ($mode === 'total' && ($row['total_pcs'] ?? '') !== '' && (float) $row['total_pcs'] > 0 && $qty > 0) {
+                $totalPcs = ($row['total_pcs'] ?? '') !== '' && (float) $row['total_pcs'] > 0
+                    ? (float) $row['total_pcs']
+                    : $qty * $multiplier;
+            } elseif (($row['total_pcs'] ?? '') !== '' && (float) $row['total_pcs'] > 0 && $qty > 0) {
                 $totalPcs = (float) $row['total_pcs'];
                 $multiplier = $totalPcs / $qty;
             } else {
@@ -177,7 +179,7 @@ class InboundController extends Controller
                 'supplier_id' => $data['supplier_id'],
                 'branch_id' => $branchId,
                 'warehouse_id' => $data['warehouse_id'],
-                'destination_location_id' => $data['destination_location_id'] ?? $this->defaultWarehouse($branchId)?->locations()->first()?->id,
+                'destination_location_id' => $data['destination_location_id'] ?? $warehouse->locations()->first()?->id ?? $this->defaultWarehouse($branchId)?->locations()->first()?->id,
                 'source_so' => $data['source_so'] ?? null,
                 'po_no' => $data['po_no'] ?? null,
                 'received_at' => ($data['received_at'] ?? null) ? now()->startOfDay() : null,
@@ -527,6 +529,8 @@ class InboundController extends Controller
             'defaultBinId' => $request->integer('location_id'),
             'navPo' => $navPo,
             'navRows' => $navRows,
+            'navTotalItems' => $navPo?->items->count() ?? 0,
+            'navTotalQty' => $navPo?->items->sum('nav_qty_pcs') ?? 0,
             'navOutstanding' => $navPo?->items->sum(fn (NavPurchaseOrderItem $line) => $line->remainingQtyPcs()) ?? 0,
             'navMissingSkus' => $navMissingSkus,
             'navSupplierId' => $navPo ? Supplier::where('name', $navPo->supplier_name)->value('id') : null,
@@ -584,6 +588,7 @@ class InboundController extends Controller
                 'item_id' => (int) $item->id,
                 'uom_id' => $uom ? (int) $uom->id : null,
                 'received_qty' => (float) ($multiplier > 0 ? $fmt($nav / $multiplier) : $nav),
+                'pcs_per_uom' => $multiplier,
                 'total_pcs' => $nav,
                 'nav_qty' => $nav,
                 'outstanding' => $line->remainingQtyPcs(),
