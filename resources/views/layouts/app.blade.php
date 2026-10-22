@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.4.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.1/dist/js/tom-select.complete.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -30,9 +32,9 @@
         .btn-danger { background:#e11d48; color:#fff; } .btn-danger:hover { background:#be123c; }
         .btn-dark { background:#0f172a; color:#fff; } .btn-dark:hover { background:#1e293b; }
         .btn-sm { padding:.35rem .7rem; font-size:.78rem; }
-        .input { width:100%; border:1px solid #cbd5e1; border-radius:.65rem; padding:.55rem .8rem; font-size:.875rem; background:#fff; color:#0f172a; }
+        .input { width:100%; border:1px solid #cbd5e1; border-radius:.65rem; padding:.55rem .8rem; font-size:.875rem; background:#fff; color:#0f172a; font-family:"Plus Jakarta Sans",sans-serif; }
         .input:focus { outline:2px solid #6366f1; outline-offset:-1px; border-color:#6366f1; }
-        .label { display:block; font-size:.72rem; font-weight:700; color:#475569; margin-bottom:.3rem; text-transform:uppercase; letter-spacing:.05em; }
+        .label { display:block; font-size:.72rem; font-weight:700; color:#475569; margin-bottom:.3rem; text-transform:uppercase; letter-spacing:.05em; font-family:"Plus Jakarta Sans",sans-serif; }
         .table { width:100%; border-collapse:collapse; font-size:.85rem; }
         .table thead th { background:#f8fafc; color:#475569; text-align:left; padding:.65rem .8rem; font-weight:700; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
         .table tbody td { padding:.65rem .8rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
@@ -45,6 +47,46 @@
         .hint { font-size:.78rem; color:#64748b; }
         .required::after { content:"*"; color:#e11d48; margin-left:.15rem; }
         .table-scroll { overflow-x:auto; }
+
+        /* TomSelect Dropdown Styling */
+        .ts-wrapper { font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif !important; width:100%; }
+        .ts-control {
+            border:1px solid #cbd5e1 !important;
+            border-radius:0.65rem !important;
+            padding:0.55rem 0.8rem !important;
+            font-size:0.875rem !important;
+            background:#fff !important;
+            color:#0f172a !important;
+            box-shadow:none !important;
+            display:flex !important;
+            align-items:center !important;
+            min-height:2.65rem !important;
+        }
+        .ts-control input { font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif !important; font-size:0.875rem !important; color:#0f172a !important; }
+        .ts-control:focus, .ts-wrapper.focus .ts-control {
+            border-color:#6366f1 !important;
+            outline:2px solid #6366f1 !important;
+            outline-offset:-1px !important;
+        }
+        .ts-dropdown {
+            font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif !important;
+            border:1px solid #cbd5e1 !important;
+            border-radius:0.65rem !important;
+            box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1) !important;
+            font-size:0.875rem !important;
+            z-index:9999 !important;
+            padding:0.35rem !important;
+            background:#fff !important;
+        }
+        .ts-dropdown .option {
+            border-radius:0.4rem !important;
+            padding:0.5rem 0.75rem !important;
+            color:#334155 !important;
+        }
+        .ts-dropdown .active {
+            background-color:#e0e7ff !important;
+            color:#3730a3 !important;
+        }
         @media print {
             .no-print { display:none !important; }
             body { background:#fff !important; }
@@ -221,6 +263,21 @@
     if (toast) setTimeout(() => { toast.style.display = 'none'; }, 6000);
 
     window.wmsConfirm = (message) => confirm(message || 'Lanjutkan aksi ini?');
+
+    window.initSearchableSelects = function(container = document) {
+        if (typeof TomSelect === 'undefined') return;
+        container.querySelectorAll('select.searchable').forEach(function(el) {
+            if (!el.tomselect) {
+                new TomSelect(el, {
+                    create: false,
+                    maxOptions: 100,
+                    placeholder: el.getAttribute('placeholder') || '- Cari / Pilih -',
+                    allowEmptyOption: true,
+                });
+            }
+        });
+    };
+    document.addEventListener("DOMContentLoaded", () => window.initSearchableSelects());
 </script>
 @stack('scripts')
 </body>

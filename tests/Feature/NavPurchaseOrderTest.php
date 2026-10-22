@@ -109,8 +109,8 @@ class NavPurchaseOrderTest extends TestCase
             ->assertSee('value="'.$po->po_no.'"', false)
             ->assertSee('name="items[0][item_id]"', false)
             ->assertSee('value="'.$this->item->id.'"', false)
-            ->assertSee('name="items[0][received_qty]" value="2"', false)
-            ->assertSee('name="items[0][total_pcs]" value="100"', false)
+            ->assertSee('name="items[0][received_qty]" value="1"', false)
+            ->assertSee('name="items[0][total_pcs]" value="50"', false)
             ->assertSee('name="items[0][nav_qty]" value="100"', false)
             ->assertSee($this->supplier->name, false);
 

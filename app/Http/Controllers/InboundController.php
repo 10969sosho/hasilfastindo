@@ -518,6 +518,45 @@ class InboundController extends Controller
 
         [$navPo, $navRows, $navMissingSkus] = $this->navPrefill($request, $items, $uoms);
 
+        $navPoItems = $navPo ? $navPo->items->map(function (NavPurchaseOrderItem $line) use ($items, $uoms, $conversions) {
+            $item = $items->firstWhere('sku', $line->sku);
+            $baseUom = $item ? $uoms->firstWhere('id', $item->base_uom_id) : null;
+            $availableUoms = [];
+            if ($baseUom) {
+                $availableUoms[] = [
+                    'id' => (int) $baseUom->id,
+                    'code' => $baseUom->code,
+                    'name' => $baseUom->name,
+                    'multiplier' => 1.0,
+                ];
+            }
+            if ($item && isset($conversions[$item->id])) {
+                foreach ($conversions[$item->id] as $uomId => $mult) {
+                    $u = $uoms->firstWhere('id', $uomId);
+                    if ($u && $u->id !== $item->base_uom_id) {
+                        $availableUoms[] = [
+                            'id' => (int) $u->id,
+                            'code' => $u->code,
+                            'name' => $u->name,
+                            'multiplier' => (float) $mult,
+                        ];
+                    }
+                }
+            }
+
+            return [
+                'nav_line_id' => $line->id,
+                'sku' => $line->sku,
+                'item_name' => $line->item_name,
+                'item_id' => $item?->id,
+                'base_uom' => $baseUom?->code ?: 'PCS',
+                'nav_qty_pcs' => (float) $line->nav_qty_pcs,
+                'received_qty_pcs' => (float) $line->received_qty_pcs,
+                'remaining_qty_pcs' => (float) $line->remainingQtyPcs(),
+                'available_uoms' => $availableUoms,
+            ];
+        })->values() : collect();
+
         return [
             'warehouses' => $warehouses,
             'bins' => $this->locationsOf($warehouseId),
@@ -529,6 +568,7 @@ class InboundController extends Controller
             'defaultBinId' => $request->integer('location_id'),
             'navPo' => $navPo,
             'navRows' => $navRows,
+            'navPoItems' => $navPoItems,
             'navTotalItems' => $navPo?->items->count() ?? 0,
             'navTotalQty' => $navPo?->items->sum('nav_qty_pcs') ?? 0,
             'navOutstanding' => $navPo?->items->sum(fn (NavPurchaseOrderItem $line) => $line->remainingQtyPcs()) ?? 0,
