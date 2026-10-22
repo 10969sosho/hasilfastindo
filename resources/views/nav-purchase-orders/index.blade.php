@@ -1,18 +1,15 @@
 @extends('layouts.app')
 
 @section('title', 'Daftar PO NAV')
-@section('subtitle', 'Sinkronisasi dokumen Purchase Order dari ERP Microsoft Dynamics NAV.')
 
 @section('content')
-<div class="card card-pad mb-5 flex flex-wrap items-end justify-between gap-3">
-    <form method="GET" action="{{ route('nav-po.index') }}" class="flex flex-wrap items-end gap-3">
-        <div class="min-w-[16rem]">
-            <label class="label">Cari</label>
-            <input class="input" name="q" value="{{ request('q') }}" placeholder="Cari nomor PO atau nama pemasok...">
+<div class="card p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
+    <form method="GET" action="{{ route('nav-po.index') }}" class="flex flex-wrap items-center gap-2.5">
+        <div class="w-72">
+            <input class="input" name="q" value="{{ request('q') }}" placeholder="Cari nomor PO atau supplier...">
         </div>
-        <div class="min-w-[13rem]">
-            <label class="label">Status</label>
-            <select class="input" name="status">
+        <div class="w-48">
+            <select class="input searchable" name="status" placeholder="Semua Status">
                 <option value="">Semua Status</option>
                 @php
                     $statusLabels = [
@@ -27,16 +24,14 @@
                 @endforeach
             </select>
         </div>
-        <button class="btn btn-ghost">Terapkan Filter</button>
+        <button class="btn btn-ghost">Filter</button>
     </form>
 
-    <div class="flex flex-wrap items-end gap-3">
+    <div class="flex items-center gap-2">
         <form method="POST" action="{{ route('nav-po.sync') }}">
             @csrf
-            <button class="btn btn-ghost" title="Tarik Purchase Order terbaru dari Microsoft Dynamics NAV"><x-icon name="sync" :size="16" /> Sinkronisasi dari NAV</button>
+            <button class="btn btn-ghost" title="Tarik Purchase Order terbaru dari Microsoft Dynamics NAV"><x-icon name="sync" :size="15" /> Sinkronisasi dari NAV</button>
         </form>
-
-        <span class="hint max-w-xs">Penerimaan manual dinonaktifkan — gunakan tombol <b>Proses ke Inbound</b> per PO.</span>
     </div>
 </div>
 
@@ -44,11 +39,18 @@
     <div class="table-scroll">
         <table class="table">
             <thead>
-                <tr><th>Nomor PO</th><th>Tanggal</th><th>Supplier</th><th>Ringkasan Item &amp; Qty NAV (PCS)</th><th>Status</th><th class="text-right">Aksi</th></tr>
+                <tr>
+                    <th>Nomor PO</th>
+                    <th>Tanggal</th>
+                    <th>Supplier</th>
+                    <th>Ringkasan Item &amp; Qty NAV (PCS)</th>
+                    <th>Status</th>
+                    <th class="text-right">Aksi</th>
+                </tr>
             </thead>
             <tbody>
             @forelse ($pos as $po)
-                <tr>
+                <tr class="hover:bg-slate-50/70">
                     <td>
                         <a href="{{ route('nav-po.show', $po) }}" class="font-mono text-xs font-bold text-indigo-700 hover:underline">{{ $po->po_no }}</a>
                         @if ($po->notes)
@@ -56,7 +58,7 @@
                         @endif
                     </td>
                     <td class="whitespace-nowrap text-slate-600">{{ $po->order_date?->format('d/m/Y') ?: '-' }}</td>
-                    <td class="text-slate-700">{{ $po->supplier_name }}</td>
+                    <td class="font-medium text-slate-800">{{ $po->supplier_name }}</td>
                     <td>
                         @php $extraItems = $po->items_count - 3; @endphp
                         <p class="font-bold text-slate-700">{{ $po->items_count }} item · {{ number_format($po->items_sum_nav_qty_pcs ?? 0) }} PCS</p>
@@ -80,6 +82,6 @@
             </tbody>
         </table>
     </div>
-    <div class="card-pad border-t border-slate-100">{{ $pos->links() }}</div>
+    <div class="p-3 border-t border-slate-100">{{ $pos->links() }}</div>
 </div>
 @endsection
