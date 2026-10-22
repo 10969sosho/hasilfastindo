@@ -173,7 +173,7 @@ class InboundController extends Controller
 
         $gr = null;
 
-        DB::transaction(function () use (&$gr, $data, $branchId, $docNumber, $sequence, $stamp, $lineNav, $navByItem, $physicalByItem, $lines) {
+        DB::transaction(function () use (&$gr, $data, $branchId, $warehouse, $docNumber, $sequence, $stamp, $lineNav, $navByItem, $physicalByItem, $lines) {
             $gr = GoodsReceipt::create([
                 'doc_number' => $docNumber,
                 'supplier_id' => $data['supplier_id'],
