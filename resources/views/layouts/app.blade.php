@@ -21,23 +21,24 @@
         }
     </script>
     <style>
-        body { font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif; }
-        .card { background:#fff; border:1px solid #e2e8f0; border-radius:.9rem; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+        body { font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; box-shadow:0 1px 2px rgba(15,23,42,.04); }
         .card-pad { padding:1.1rem 1.25rem; }
-        .btn { display:inline-flex; align-items:center; justify-content:center; gap:.45rem; border-radius:.65rem; padding:.5rem .95rem; font-size:.85rem; font-weight:600; line-height:1.2; transition:.15s ease; cursor:pointer; white-space:nowrap; }
-        .btn-primary { background:#4f46e5; color:#fff; } .btn-primary:hover { background:#4338ca; }
-        .btn-success { background:#059669; color:#fff; } .btn-success:hover { background:#047857; }
-        .btn-amber { background:#d97706; color:#fff; } .btn-amber:hover { background:#b45309; }
-        .btn-ghost { background:#fff; color:#334155; border:1px solid #cbd5e1; } .btn-ghost:hover { background:#f1f5f9; }
-        .btn-danger { background:#e11d48; color:#fff; } .btn-danger:hover { background:#be123c; }
-        .btn-dark { background:#0f172a; color:#fff; } .btn-dark:hover { background:#1e293b; }
-        .btn-sm { padding:.35rem .7rem; font-size:.78rem; }
-        .input { width:100%; border:1px solid #cbd5e1; border-radius:.65rem; padding:.55rem .8rem; font-size:.875rem; background:#fff; color:#0f172a; font-family:"Plus Jakarta Sans",sans-serif; }
-        .input:focus { outline:2px solid #6366f1; outline-offset:-1px; border-color:#6366f1; }
-        .label { display:block; font-size:.72rem; font-weight:700; color:#475569; margin-bottom:.3rem; text-transform:uppercase; letter-spacing:.05em; font-family:"Plus Jakarta Sans",sans-serif; }
-        .table { width:100%; border-collapse:collapse; font-size:.85rem; }
-        .table thead th { background:#f8fafc; color:#475569; text-align:left; padding:.65rem .8rem; font-weight:700; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
-        .table tbody td { padding:.65rem .8rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:.45rem; border-radius:.5rem; padding:.5rem .95rem; font-size:.8125rem; font-weight:600; line-height:1.25; height:2.5rem; transition:.15s ease; cursor:pointer; white-space:nowrap; box-sizing:border-box; }
+        .btn-primary { background:#4f46e5; color:#fff; border:1px solid transparent; } .btn-primary:hover { background:#4338ca; }
+        .btn-success { background:#059669; color:#fff; border:1px solid transparent; } .btn-success:hover { background:#047857; }
+        .btn-amber { background:#d97706; color:#fff; border:1px solid transparent; } .btn-amber:hover { background:#b45309; }
+        .btn-ghost { background:#fff; color:#334155; border:1px solid #cbd5e1; } .btn-ghost:hover { background:#f8fafc; border-color:#94a3b8; }
+        .btn-danger { background:#e11d48; color:#fff; border:1px solid transparent; } .btn-danger:hover { background:#be123c; }
+        .btn-dark { background:#0f172a; color:#fff; border:1px solid transparent; } .btn-dark:hover { background:#1e293b; }
+        .btn-sm { padding:.25rem .6rem; font-size:.75rem; height:1.875rem; border-radius:.375rem; }
+        .input { width:100%; height:2.5rem; border:1px solid #cbd5e1; border-radius:.5rem; padding:0 .75rem; font-size:.8125rem; background:#fff; color:#0f172a; font-family:"Plus Jakarta Sans",sans-serif; transition:border-color .15s, box-shadow .15s; box-sizing:border-box; }
+        .input:focus { outline:none; border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.2); }
+        .input[readonly] { background:#f8fafc; color:#475569; }
+        .label { display:block; font-size:.72rem; font-weight:700; color:#475569; margin-bottom:.35rem; text-transform:uppercase; letter-spacing:.04em; font-family:"Plus Jakarta Sans",sans-serif; }
+        .table { width:100%; border-collapse:collapse; font-size:.8125rem; }
+        .table thead th { background:#f8fafc; color:#475569; text-align:left; padding:.625rem .75rem; font-weight:700; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+        .table tbody td { padding:.625rem .75rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
         .table tbody tr:hover { background:#f8fafc; }
         .nav-link { display:flex; align-items:center; gap:.7rem; padding:.55rem .8rem; border-radius:.6rem; color:#94a3b8; font-size:.875rem; font-weight:600; transition:.15s; }
         .nav-link:hover { background:rgba(255,255,255,.06); color:#e2e8f0; }
@@ -45,42 +46,49 @@
         .nav-section { font-size:.66rem; font-weight:800; letter-spacing:.12em; color:#475569; text-transform:uppercase; padding:1rem .9rem .35rem; }
         .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:.9rem; padding:1rem 1.1rem; }
         .hint { font-size:.78rem; color:#64748b; }
-        .required::after { content:"*"; color:#e11d48; margin-left:.15rem; }
+        .required::after { content:" *"; color:#e11d48; font-weight:700; }
         .table-scroll { overflow-x:auto; }
 
-        /* TomSelect Dropdown Styling */
+        /* TomSelect Standardized Styling to Match Exact .input Height (2.5rem / 40px) */
         .ts-wrapper { font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif !important; width:100%; }
         .ts-control {
             border:1px solid #cbd5e1 !important;
-            border-radius:0.65rem !important;
-            padding:0.55rem 0.8rem !important;
-            font-size:0.875rem !important;
+            border-radius:0.5rem !important;
+            padding:0 0.75rem !important;
+            font-size:0.8125rem !important;
             background:#fff !important;
             color:#0f172a !important;
             box-shadow:none !important;
             display:flex !important;
             align-items:center !important;
-            min-height:2.65rem !important;
+            height:2.5rem !important;
+            min-height:2.5rem !important;
+            box-sizing:border-box !important;
+            transition:border-color .15s, box-shadow .15s !important;
         }
-        .ts-control input { font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif !important; font-size:0.875rem !important; color:#0f172a !important; }
+        .ts-control input {
+            font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif !important;
+            font-size:0.8125rem !important;
+            color:#0f172a !important;
+        }
         .ts-control:focus, .ts-wrapper.focus .ts-control {
             border-color:#6366f1 !important;
-            outline:2px solid #6366f1 !important;
-            outline-offset:-1px !important;
+            outline:none !important;
+            box-shadow:0 0 0 2px rgba(99,102,241,.2) !important;
         }
         .ts-dropdown {
             font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif !important;
             border:1px solid #cbd5e1 !important;
-            border-radius:0.65rem !important;
+            border-radius:0.5rem !important;
             box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1) !important;
-            font-size:0.875rem !important;
+            font-size:0.8125rem !important;
             z-index:9999 !important;
-            padding:0.35rem !important;
+            padding:0.25rem !important;
             background:#fff !important;
         }
         .ts-dropdown .option {
-            border-radius:0.4rem !important;
-            padding:0.5rem 0.75rem !important;
+            border-radius:0.375rem !important;
+            padding:0.45rem 0.65rem !important;
             color:#334155 !important;
         }
         .ts-dropdown .active {
