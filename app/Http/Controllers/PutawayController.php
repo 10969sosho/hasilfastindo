@@ -49,7 +49,7 @@ class PutawayController extends Controller
             'ok' => true,
             'message' => 'Barang ditemukan: '.$serial->sku,
             'payload' => $serial->toLookupPayload(),
-            'bins' => static::binsOf($warehouseId ?: null),
+            'bins' => static::binsOf($warehouseId ?: null, (int) $serial->location_id),
         ]);
     }
 
@@ -152,13 +152,14 @@ class PutawayController extends Controller
     /**
      * @return Collection<int, array{id: int, code: string, rack: ?string}>
      */
-    public static function binsOf(?int $warehouseId)
+    public static function binsOf(?int $warehouseId, ?int $excludeLocationId = null)
     {
         if (! $warehouseId) {
             return collect();
         }
 
         return Location::where('warehouse_id', $warehouseId)
+            ->when($excludeLocationId, fn ($q) => $q->where('id', '!=', $excludeLocationId))
             ->orderBy('code')
             ->get()
             ->map(fn (Location $l) => ['id' => $l->id, 'code' => $l->code, 'rack' => $l->rack]);

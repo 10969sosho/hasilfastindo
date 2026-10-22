@@ -129,8 +129,8 @@
         ['type' => 'link', 'label' => 'Konversi Satuan', 'icon' => 'sync', 'match' => 'conversion.', 'route' => 'conversion.index'],
         ['type' => 'link', 'label' => 'Stok Opname', 'icon' => 'scan', 'match' => 'opname.', 'route' => 'opname.index'],
 
-        ['type' => 'section', 'label' => 'Monitoring'],
-        ['type' => 'link', 'label' => 'Monitoring Pusat', 'icon' => 'chart', 'match' => 'monitoring.', 'route' => 'monitoring.index', 'roles' => ['super_admin', 'central']],
+        ['type' => 'section', 'label' => 'Monitoring & Stok'],
+        ['type' => 'link', 'label' => 'Monitoring Stok (Semua)', 'icon' => 'chart', 'match' => 'monitoring.', 'route' => 'monitoring.index'],
         ['type' => 'link', 'label' => 'Mobile Warehouse', 'icon' => 'smartphone', 'match' => 'mobile.', 'route' => 'mobile.index'],
 
         ['type' => 'section', 'label' => 'Master Data'],
