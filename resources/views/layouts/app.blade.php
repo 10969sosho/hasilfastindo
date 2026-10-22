@@ -111,13 +111,15 @@
     $branches = $canSeeAll ? \App\Models\Branch::orderByDesc('is_central')->orderBy('name')->get() : collect();
 
     $nav = [
-        ['type' => 'section', 'label' => 'Operasional'],
-        ['type' => 'link', 'label' => 'Dashboard', 'icon' => 'dashboard', 'match' => 'dashboard', 'route' => 'dashboard'],
-        ['type' => 'link', 'label' => 'Penerimaan Barang', 'icon' => 'inbound', 'match' => 'inbound.', 'route' => 'inbound.index'],
-        ['type' => 'link', 'label' => 'Putaway / Taruh Rak', 'icon' => 'scan', 'match' => 'putaway.', 'route' => 'putaway.index'],
+        ['type' => 'section', 'label' => 'Integrasi ERP NAV'],
         ['type' => 'link', 'label' => 'Daftar PO NAV', 'icon' => 'boxes', 'match' => 'nav-po.', 'route' => 'nav-po.index'],
         ['type' => 'link', 'label' => 'Pengeluaran (SO)', 'icon' => 'outbound', 'match' => 'outbound.', 'route' => 'outbound.index'],
         ['type' => 'link', 'label' => 'Radar Summary SO', 'icon' => 'radar', 'match' => 'summary.', 'route' => 'summary.index'],
+
+        ['type' => 'section', 'label' => 'Operasional Gudang'],
+        ['type' => 'link', 'label' => 'Dashboard', 'icon' => 'dashboard', 'match' => 'dashboard', 'route' => 'dashboard'],
+        ['type' => 'link', 'label' => 'Penerimaan Barang', 'icon' => 'inbound', 'match' => 'inbound.', 'route' => 'inbound.index'],
+        ['type' => 'link', 'label' => 'Putaway / Taruh Rak', 'icon' => 'scan', 'match' => 'putaway.', 'route' => 'putaway.index'],
         ['type' => 'link', 'label' => 'Picking & Packing', 'icon' => 'clipboard', 'match' => 'packing.', 'route' => 'packing.index'],
         ['type' => 'link', 'label' => 'Generate Barcode Koli', 'icon' => 'boxes', 'match' => 'koli.', 'route' => 'koli.index'],
         ['type' => 'link', 'label' => 'Pengiriman & Scan Out', 'icon' => 'truck', 'match' => 'delivery.', 'route' => 'delivery.index'],
@@ -126,14 +128,16 @@
         ['type' => 'link', 'label' => 'Transfer Antar Bin', 'icon' => 'warehouse', 'match' => 'bin-transfers.', 'route' => 'bin-transfers.index'],
         ['type' => 'link', 'label' => 'Konversi Satuan', 'icon' => 'sync', 'match' => 'conversion.', 'route' => 'conversion.index'],
         ['type' => 'link', 'label' => 'Stok Opname', 'icon' => 'scan', 'match' => 'opname.', 'route' => 'opname.index'],
+
         ['type' => 'section', 'label' => 'Monitoring'],
         ['type' => 'link', 'label' => 'Monitoring Pusat', 'icon' => 'chart', 'match' => 'monitoring.', 'route' => 'monitoring.index', 'roles' => ['super_admin', 'central']],
         ['type' => 'link', 'label' => 'Mobile Warehouse', 'icon' => 'smartphone', 'match' => 'mobile.', 'route' => 'mobile.index'],
+
         ['type' => 'section', 'label' => 'Master Data'],
-        ['type' => 'link', 'label' => 'Data Item', 'icon' => 'package', 'match' => 'items.', 'route' => 'items.index'],
+        ['type' => 'link', 'label' => 'Data Item & UOM', 'icon' => 'package', 'match' => 'items.', 'route' => 'items.index'],
         ['type' => 'link', 'label' => 'Cetak Barcode', 'icon' => 'barcode', 'match' => 'items.barcode', 'route' => 'items.barcode'],
         ['type' => 'link', 'label' => 'Cabang', 'icon' => 'building', 'match' => 'branches.', 'route' => 'branches.index', 'roles' => ['super_admin', 'central']],
-        ['type' => 'link', 'label' => 'Gudang & BIN', 'icon' => 'warehouse', 'match' => 'warehouses.', 'route' => 'warehouses.index'],
+        ['type' => 'link', 'label' => 'Gudang & Rak/BIN', 'icon' => 'warehouse', 'match' => 'warehouses.', 'route' => 'warehouses.index'],
         ['type' => 'link', 'label' => 'Armada & Sopir', 'icon' => 'truck', 'match' => 'fleet.', 'route' => 'fleet.index'],
         ['type' => 'link', 'label' => 'Supplier & Customer', 'icon' => 'users', 'match' => 'partners.', 'route' => 'partners.index'],
     ];

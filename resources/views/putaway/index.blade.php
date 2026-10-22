@@ -166,15 +166,21 @@
                 </div>`;
 
             const sel = document.getElementById('paBins');
-            sel.innerHTML = '<option value="">- Pilih BIN / Rak -</option>' + (data.bins || [])
-                .map(b => `<option value="${b.id}">${b.code}</option>`).join('');
-
-            // Inisialisasi TomSelect bila tersedia
             if (sel.tomselect) {
                 sel.tomselect.destroy();
             }
-            if (window.initSearchableSelects) {
-                window.initSearchableSelects(paForm);
+
+            sel.innerHTML = '<option value="">- Pilih BIN / Rak -</option>' + (data.bins || [])
+                .map(b => `<option value="${b.id}">${b.code}${b.rack ? ' (Rak ' + b.rack + ')' : ''}</option>`).join('');
+
+            // Inisialisasi ulang TomSelect pada select yang baru diisi option
+            if (typeof TomSelect !== 'undefined') {
+                new TomSelect(sel, {
+                    create: false,
+                    maxOptions: 100,
+                    placeholder: '- Pilih BIN / Rak -',
+                    allowEmptyOption: true,
+                });
             }
 
             document.getElementById('paSerial').value = p.kode_uom_serialno;
