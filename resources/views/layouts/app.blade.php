@@ -114,6 +114,7 @@
         ['type' => 'section', 'label' => 'Integrasi ERP NAV'],
         ['type' => 'link', 'label' => 'Daftar PO NAV', 'icon' => 'boxes', 'match' => 'nav-po.', 'route' => 'nav-po.index'],
         ['type' => 'link', 'label' => 'Pengeluaran (SO)', 'icon' => 'outbound', 'match' => 'outbound.', 'route' => 'outbound.index'],
+        ['type' => 'link', 'label' => 'Daftar Pick NAV', 'icon' => 'clipboard', 'match' => 'nav-picks.', 'route' => 'nav-picks.index'],
         ['type' => 'link', 'label' => 'Radar Summary SO', 'icon' => 'radar', 'match' => 'summary.', 'route' => 'summary.index'],
 
         ['type' => 'section', 'label' => 'Penerimaan (Inbound)'],

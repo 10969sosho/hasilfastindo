@@ -8,6 +8,8 @@ use App\Models\Customer;
 use App\Models\Item;
 use App\Models\NavPurchaseOrder;
 use App\Models\NavPurchaseOrderItem;
+use App\Models\NavWarehousePick;
+use App\Models\NavWarehousePickItem;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\Supplier;
@@ -388,6 +390,119 @@ class BusinessCentralService
         }
 
         return $navStatus;
+    }
+
+    /**
+     * Tarik Dokumen Warehouse Pick dari OData NAV dan upsert ke tabel staging lokal.
+     *
+     * @param  int  $limit  Jumlah dokumen maksimal jika tanpa filter nomor tertentu
+     * @param  string|null  $targetPickNo  Nomor pick spesifik yang ingin disinkronkan langsung (opsional)
+     * @return int Jumlah dokumen pick yang berhasil disinkronkan
+     */
+    public function syncWarehousePicks(int $limit = 50, ?string $targetPickNo = null): int
+    {
+        $companyName = rawurlencode($this->company);
+        $headerUrl = sprintf(
+            'https://api.businesscentral.dynamics.com/v2.0/%s/%s/ODataV4/Company(\'%s\')/Warehouse_Pick_Excel',
+            $this->tenantId,
+            $this->environment,
+            $companyName
+        );
+
+        $params = [
+            '$top' => $limit,
+        ];
+
+        if ($targetPickNo) {
+            $params['$filter'] = "No eq '{$targetPickNo}'";
+        }
+
+        $picks = $this->request($headerUrl, $params);
+
+        $linesUrl = sprintf(
+            'https://api.businesscentral.dynamics.com/v2.0/%s/%s/ODataV4/Company(\'%s\')/Warehouse_Pick_ExcelWhseActivityLines',
+            $this->tenantId,
+            $this->environment,
+            $companyName
+        );
+
+        $synced = 0;
+
+        foreach ($picks as $pick) {
+            $pickNo = $pick['No'] ?? null;
+            if (! $pickNo) {
+                continue;
+            }
+
+            // Ambil rincian line untuk pick ini
+            $lines = $this->request($linesUrl, [
+                '$filter' => "No eq '{$pickNo}'",
+            ]);
+
+            $sourceSo = null;
+            $whseShipment = null;
+            $destinationNo = null;
+
+            foreach ($lines as $line) {
+                if (! empty($line['Source_No'])) {
+                    $sourceSo = $line['Source_No'];
+                }
+                if (! empty($line['Whse_Document_No'])) {
+                    $whseShipment = $line['Whse_Document_No'];
+                }
+                if (! empty($line['Destination_No'])) {
+                    $destinationNo = $line['Destination_No'];
+                }
+            }
+
+            $wp = NavWarehousePick::updateOrCreate(
+                ['pick_no' => $pickNo],
+                [
+                    'source_so_no' => $sourceSo,
+                    'whse_shipment_no' => $whseShipment,
+                    'location_code' => $pick['CurrentLocationCode'] ?? null,
+                    'destination_no' => $destinationNo,
+                    'assigned_user_id' => $pick['Assigned_User_ID'] ?? null,
+                    'assignment_date' => ! empty($pick['Assignment_Date']) ? $pick['Assignment_Date'] : now()->toDateString(),
+                    'status' => NavWarehousePick::STATUS_OPEN,
+                ]
+            );
+
+            foreach ($lines as $l) {
+                $sku = $l['Item_No'] ?? null;
+                if (! $sku) {
+                    continue;
+                }
+
+                $this->syncItemMaster($sku, $l['Description'] ?? $sku, strtoupper($l['Unit_of_Measure_Code'] ?? 'PCS'));
+
+                NavWarehousePickItem::updateOrCreate(
+                    [
+                        'nav_pick_id' => $wp->id,
+                        'line_no' => (string) ($l['Line_No'] ?? '0'),
+                        'action_type' => $l['Action_Type'] ?? 'Take',
+                    ],
+                    [
+                        'sku' => $sku,
+                        'variant_code' => $l['Variant_Code'] ?? null,
+                        'item_name' => $l['Description'] ?? $sku,
+                        'uom_code' => strtoupper($l['Unit_of_Measure_Code'] ?? 'PCS'),
+                        'bin_code' => $l['Bin_Code'] ?? null,
+                        'zone_code' => $l['Zone_Code'] ?? null,
+                        'quantity' => (float) ($l['Quantity'] ?? 0),
+                        'qty_base' => (float) ($l['Qty_Base'] ?? 0),
+                        'qty_to_handle' => (float) ($l['Qty_to_Handle'] ?? 0),
+                        'qty_handled' => (float) ($l['Qty_Handled'] ?? 0),
+                        'qty_outstanding' => (float) ($l['Qty_Outstanding'] ?? 0),
+                        'due_date' => ! empty($l['Due_Date']) && $l['Due_Date'] !== '0001-01-01' ? $l['Due_Date'] : null,
+                    ]
+                );
+            }
+
+            $synced++;
+        }
+
+        return $synced;
     }
 
     protected function syncSupplier(?string $vendorNumber, string $vendorName): void

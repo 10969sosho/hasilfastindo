@@ -13,6 +13,7 @@ use App\Http\Controllers\KoliController;
 use App\Http\Controllers\MobileWarehouseController;
 use App\Http\Controllers\MonitoringPusatController;
 use App\Http\Controllers\NavPurchaseOrderController;
+use App\Http\Controllers\NavWarehousePickController;
 use App\Http\Controllers\OutboundController;
 use App\Http\Controllers\PackingController;
 use App\Http\Controllers\PartnerController;
@@ -129,6 +130,11 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::get('/nav-purchase-orders', [NavPurchaseOrderController::class, 'index'])->name('nav-po.index');
     Route::post('/nav-purchase-orders/sync', [NavPurchaseOrderController::class, 'sync'])->name('nav-po.sync');
     Route::get('/nav-purchase-orders/{purchaseOrder}', [NavPurchaseOrderController::class, 'show'])->name('nav-po.show');
+
+    /* ------------------------------------------ Staging: Pick dari NAV/BC */
+    Route::get('/nav-picks', [NavWarehousePickController::class, 'index'])->name('nav-picks.index');
+    Route::post('/nav-picks/sync', [NavWarehousePickController::class, 'sync'])->name('nav-picks.sync');
+    Route::get('/nav-picks/{pick}', [NavWarehousePickController::class, 'show'])->name('nav-picks.show');
 
     /* -------------------------------------------------- Outbound (SO/GI) */
     Route::get('/outbound', [OutboundController::class, 'index'])->name('outbound.index');
