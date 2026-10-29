@@ -12,6 +12,7 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\KoliController;
 use App\Http\Controllers\MobileWarehouseController;
 use App\Http\Controllers\MonitoringPusatController;
+use App\Http\Controllers\NavExplorerController;
 use App\Http\Controllers\NavPurchaseOrderController;
 use App\Http\Controllers\NavWarehousePickController;
 use App\Http\Controllers\OutboundController;
@@ -135,6 +136,9 @@ Route::middleware(['auth', 'branch'])->group(function () {
     Route::get('/nav-picks', [NavWarehousePickController::class, 'index'])->name('nav-picks.index');
     Route::post('/nav-picks/sync', [NavWarehousePickController::class, 'sync'])->name('nav-picks.sync');
     Route::get('/nav-picks/{pick}', [NavWarehousePickController::class, 'show'])->name('nav-picks.show');
+
+    /* ------------------------------------------ NAV Table Explorer */
+    Route::get('/nav-explorer', [NavExplorerController::class, 'index'])->name('nav-explorer.index');
 
     /* -------------------------------------------------- Outbound (SO/GI) */
     Route::get('/outbound', [OutboundController::class, 'index'])->name('outbound.index');

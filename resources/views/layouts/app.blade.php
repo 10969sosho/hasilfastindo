@@ -116,6 +116,7 @@
         ['type' => 'link', 'label' => 'Pengeluaran (SO)', 'icon' => 'outbound', 'match' => 'outbound.', 'route' => 'outbound.index'],
         ['type' => 'link', 'label' => 'Daftar Pick NAV', 'icon' => 'clipboard', 'match' => 'nav-picks.', 'route' => 'nav-picks.index'],
         ['type' => 'link', 'label' => 'Radar Summary SO', 'icon' => 'radar', 'match' => 'summary.', 'route' => 'summary.index'],
+        ['type' => 'link', 'label' => 'NAV Table Explorer', 'icon' => 'boxes', 'match' => 'nav-explorer.', 'route' => 'nav-explorer.index'],
 
         ['type' => 'section', 'label' => 'Penerimaan (Inbound)'],
         ['type' => 'link', 'label' => 'Penerimaan Barang', 'icon' => 'inbound', 'match' => 'inbound.', 'route' => 'inbound.index'],
