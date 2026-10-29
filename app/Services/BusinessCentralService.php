@@ -51,11 +51,11 @@ class BusinessCentralService
         $this->tenantId = $config['tenant_id'];
         $this->clientId = $config['client_id'];
         $this->clientSecret = $config['client_secret'];
-        $this->company = $config['company_name'] ?? $config['company'];
+        $this->company = $config['company_name'] ?? $config['company'] ?? 'PT Hasil Fastindo';
         $this->companyId = $config['company_id'] ?? '';
         $this->environment = $config['environment'];
 
-        $this->tokenUrl = str_replace('{tenant_id}', $this->tenantId, $config['token_url']);
+        $this->tokenUrl = str_replace('{tenant_id}', $this->tenantId, $config['token_url'] ?? 'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token');
         $this->odataBaseUrl = $config['odata_base_url'] ?? $this->buildOdataUrl();
     }
 
